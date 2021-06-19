@@ -39,7 +39,7 @@ go-redis wrapper sdk  delphi
 
 ## 管道用法
 ```pascal
-  pipe := Client.NewPipeline(False); //创建一个不带事务的pipe
+  pipe := TDxPipeClient.create(Self);//创建一个不带事务的pipe
   pipe.Select(10, procedure(CmdResult: string;IsErrResult: Boolean)
     begin
       if IsErrResult then
@@ -59,6 +59,6 @@ go-redis wrapper sdk  delphi
     end);
   pipe.Execute(False,procedure(errMsg: string)
     begin
-      client.FreePipeline(pipe);
+      Pipe.Free;
     end);
 ```
