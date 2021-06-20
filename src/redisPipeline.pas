@@ -18,6 +18,7 @@ type
     constructor Create(Owner: TDxRedisClient);
     destructor Destroy;override;
     property TxPipeLine: Boolean read FTxPipeLine write SetTxPipeLine;
+    procedure ResetOwner(Owner: TDxRedisClient);
     property PipeClient: Pointer read GetPipeData;
     procedure Ping(StatusCmdReturn: TRedisStatusCmd); overload;
     procedure Ping(StatusCmdReturn: TRedisStatusCmdA); overload;
@@ -1536,7 +1537,7 @@ end;
 
 procedure TDxPipeClient.FreePipeClient;
 begin
-  if FPipeData <> nil then
+  if (FPipeData <> nil) and (FOwner <> nil) then
   begin
     TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FFreePipeLiner(FPipeData);
     FPipeData := nil;
@@ -2455,6 +2456,15 @@ begin
   Mnd^ := TMethod(ATemp);
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FRestore(PipeClient, PChar(Key), PChar(Key), ttl,
     False, statusCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.ResetOwner(Owner: TDxRedisClient);
+begin
+  if FOwner <> Owner then
+  begin
+    FreePipeClient;
+    FOwner := Owner;
+  end;
 end;
 
 procedure TDxPipeClient.Restore(Key, Value: string; ttl: Integer;

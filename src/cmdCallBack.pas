@@ -165,7 +165,10 @@ begin
     strResult^.IsErrResult := IsErrResult;
     strResult^.params := params;
     if IsErrResult then
-      strResult^.strValue := StrPas(PChar(CmdResult))
+    begin
+      strResult^.Buffer := nil;
+      strResult^.strValue := StrPas(PChar(CmdResult));
+    end
     else
     begin
       if not strMethod^.isByteReturn or (resultLen = 0) then
