@@ -35,7 +35,8 @@ type
     strValue: string;
     client: TDxRedisClient;
     params: Pointer;
-    Buffer: PMemoryBlock;
+    Buffer: PByte;
+    BufferLen: Integer;
   end;
 
   PRedisStringByteResult = ^TRedisStringByteResult;
@@ -68,6 +69,8 @@ procedure stringCmdResult(redisClient, params: Pointer; CmdResult: Pointer;resul
 procedure intCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
 procedure PipeExecReturn(pipeClient,params: Pointer;errMsg: PChar);stdcall;
 procedure scanCmdResult(redisClient, params: Pointer; keys: PChar;cursor: Int64; IsErrResult: Boolean); stdcall;
+
+procedure boolCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
 implementation
 
 type
@@ -143,7 +146,6 @@ var
   strResult: PRedisStringByteResult;
   rClient: TDxRedisClient;
   pipeClient: TDxPipeClient;
-  block: PMemoryBlock;
   strMethod: PStringCmdMethod;
   errMsg: string;
 begin
@@ -164,6 +166,7 @@ begin
     strResult^.client := redisClient;
     strResult^.IsErrResult := IsErrResult;
     strResult^.params := params;
+    strResult^.BufferLen := resultLen;
     if IsErrResult then
     begin
       strResult^.Buffer := nil;
@@ -178,10 +181,8 @@ begin
       end
       else
       begin
-        block := GetMemBlock(CalcMemType(resultLen));
-        block^.DataLen := resultLen;
-        Move(CmdResult^, block^.Memory^, resultLen);
-        strResult^.Buffer := block;
+        strResult^.Buffer := GetMemory(resultLen);
+        Move(CmdResult^, strResult^.Buffer^, resultLen);
       end;
     end;
     TDxRedisSdkManagerEx(rclient.RedisSdkManager).PostRedisMsg(MC_StringCmd, strResult);
@@ -269,6 +270,51 @@ begin
       end
       else
         TIntCmdReturn(PMethod(params)^)(redisClient, intResult, StrPas(errMsg));
+    end;
+    Dispose(params);
+  end;
+  if pipeClient = nil then
+    AtomicDecrement(TDxRedisClientEx(rclient).FRunningCount, 1);
+end;
+
+procedure boolCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
+var
+  intCmdResult: PRedisIntResult;
+  rClient: TDxRedisClient;
+  pipeClient: TDxPipeClient;
+begin
+  if TObject(redisClient).InheritsFrom(TDxRedisClient) then
+  begin
+    rClient := redisClient;
+    pipeClient := nil;
+  end
+  else
+  begin
+    pipeClient := redisClient;
+    rClient := pipeClient.Owner;
+  end;
+  if GetCurrentThreadId <> MainThreadID then
+  begin
+    New(intCmdResult);
+    intCmdResult^.client := redisClient;
+    intCmdResult^.CmdResult := intResult;
+    intCmdResult^.params := params;
+    intCmdResult^.errMsg := StrPas(errMsg);
+    TDxRedisSdkManagerEx(rClient.RedisSdkManager).PostRedisMsg(MC_BoolCmd, intCmdResult);
+  end
+  else
+  begin
+    if PMethod(params)^.Code <> nil then
+    begin
+      if PMethod(params)^.Data = nil then
+        TBoolCmdReturnG(PMethod(params)^.Code)(intResult=1, StrPas(errMsg))
+      else if PMethod(params)^.Data = Pointer(-1) then
+      begin
+        TBoolCmdReturnA(PMethod(params)^.Code)(intResult=1, StrPas(errMsg));
+        PMethod(params)^.Code := nil;
+      end
+      else
+        TBoolCmdReturn(PMethod(params)^)(redisClient, intResult=1, StrPas(errMsg));
     end;
     Dispose(params);
   end;
