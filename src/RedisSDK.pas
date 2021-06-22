@@ -83,9 +83,16 @@ type
     Next: PSynWndMessageItem;
   end;
 
+  TValueInterface = record
+    ValueLen: Integer;
+    Value: Pointer;
+  end;
+
+  PValueInterface = ^TValueInterface;
+
   TRedisKeyValue = record
     Key: PChar;
-    Value: PChar;
+    Value: TValueInterface;
   end;
 
   PRedisKeyValue = ^TRedisKeyValue;
@@ -152,12 +159,10 @@ type
   PPipelineExecReturnA = ^TPipelineExecReturnA;
   TPipelineExecReturnG = procedure(ErrMsg: string);
 
-
   TKeyValue = record
     Key: string;
     Value: string;
   end;
-
   TSetArgModeStyle = (smsNone, smsNx, smsXX);
 
   TsetArgs = record
@@ -175,13 +180,6 @@ type
   end;
 
   PLPosArgs = ^TLPosArgs;
-
-  TValueInterface = record
-    ValueLen: Integer;
-    Value: Pointer;
-  end;
-
-  PValueInterface = ^TValueInterface;
 
   TZValue = record
     Score: Float64;
@@ -267,6 +265,13 @@ type
       StatusCmdReturn: TRedisStatusCmdA); overload;
     procedure MSet(keyValueArray: array of TKeyValue; block: Boolean;
       StatusCmdReturn: TRedisStatusCmdG); overload;
+    procedure MSet(keyValueArray: array of TRedisKeyValue; block: Boolean;
+      StatusCmdReturn: TRedisStatusCmd); overload;
+    procedure MSet(keyValueArray: array of TRedisKeyValue; block: Boolean;
+      StatusCmdReturn: TRedisStatusCmdA); overload;
+    procedure MSet(keyValueArray: array of TRedisKeyValue; block: Boolean;
+      StatusCmdReturn: TRedisStatusCmdG); overload;
+
     procedure SetCmd(Key, Value: string; expiration: Integer; block: Boolean;
       StatusCmdReturn: TRedisStatusCmd); overload;
     procedure SetCmd(Key, Value: string; expiration: Integer; block: Boolean;
@@ -756,6 +761,12 @@ type
       intCmdReturn: TIntCmdReturnA); overload;
     procedure HSet(Key: string; keyValues: array of TKeyValue; block: Boolean;
       intCmdReturn: TIntCmdReturnG); overload;
+    procedure HSet(Key: string; keyValues: array of TRedisKeyValue; block: Boolean;
+      intCmdReturn: TIntCmdReturn); overload;
+    procedure HSet(Key: string; keyValues: array of TRedisKeyValue; block: Boolean;
+      intCmdReturn: TIntCmdReturnA); overload;
+    procedure HSet(Key: string; keyValues: array of TRedisKeyValue; block: Boolean;
+      intCmdReturn: TIntCmdReturnG); overload;
 
     procedure LInsert(Key: string; before: Boolean; pivot, Value: string;
       block: Boolean; intCmdReturn: TIntCmdReturn); overload;
@@ -1078,6 +1089,9 @@ type
     procedure MSetNX(keyValues: array of TKeyValue; block: Boolean;CmdReturn: TBoolCmdReturn); overload;
     procedure MSetNX(keyValues: array of TKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnA); overload;
     procedure MSetNX(keyValues: array of TKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnG); overload;
+    procedure MSetNX(keyValues: array of TRedisKeyValue; block: Boolean;CmdReturn: TBoolCmdReturn); overload;
+    procedure MSetNX(keyValues: array of TRedisKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnA); overload;
+    procedure MSetNX(keyValues: array of TRedisKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnG); overload;
 
     procedure SetNX(key,value: string;expiration: Integer; block: Boolean;CmdReturn: TBoolCmdReturn); overload;
     procedure SetNX(key,value: string;expiration: Integer; block: Boolean;CmdReturn: TBoolCmdReturnA); overload;
@@ -1100,6 +1114,9 @@ type
     procedure HMSet(Key: string;keyValues: array of TKeyValue; block: Boolean;CmdReturn: TBoolCmdReturn); overload;
     procedure HMSet(Key: string;keyValues: array of TKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnA); overload;
     procedure HMSet(Key: string;keyValues: array of TKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnG); overload;
+    procedure HMSet(Key: string;keyValues: array of TRedisKeyValue; block: Boolean;CmdReturn: TBoolCmdReturn); overload;
+    procedure HMSet(Key: string;keyValues: array of TRedisKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnA); overload;
+    procedure HMSet(Key: string;keyValues: array of TRedisKeyValue; block: Boolean;CmdReturn: TBoolCmdReturnG); overload;
 
     procedure HSetNX(key,field,value: string;block: Boolean;CmdReturn: TBoolCmdReturn); overload;
     procedure HSetNX(key,field,value: string;block: Boolean;CmdReturn: TBoolCmdReturnA); overload;
@@ -3178,7 +3195,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
 
   New(Mnd);
@@ -3201,7 +3219,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
@@ -3225,12 +3244,60 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
   New(Mnd);
   Mnd^.Data := nil;
   TBoolCmdReturnA(Mnd^.Code) := CmdReturn;
   FRedisSdkManager.FMSetNX(FRedisClient, @redisKVs[0], l, block,boolCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.MSetNX(keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturn);
+var
+  Mnd: PMethod;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FMSetNX(FRedisClient,@keyValues[0], l, block,boolCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.MSetNX(keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PBoolCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FMSetNX(FRedisClient, @keyValues[0], l, block,boolCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.MSetNX(keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturnG);
+var
+  Mnd: PMethod;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TBoolCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FMSetNX(FRedisClient, @keyValues[0], l, block,boolCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.SetNX(key,value: string;expiration: Integer; block: Boolean;CmdReturn: TBoolCmdReturn);
@@ -3422,7 +3489,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
 
   New(Mnd);
@@ -3445,7 +3513,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
@@ -3469,12 +3538,60 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
   New(Mnd);
   Mnd^.Data := nil;
   TBoolCmdReturnA(Mnd^.Code) := CmdReturn;
   FRedisSdkManager.FHMSet(FRedisClient,PChar(key), @redisKVs[0], l, block,boolCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HMSet(key: string; keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturn);
+var
+  Mnd: PMethod;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FHMSet(FRedisClient,PChar(Key),@keyValues[0], l, block,boolCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HMSet(key: string;keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PBoolCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FHMSet(FRedisClient,PChar(key), @keyValues[0], l, block,boolCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HMSet(key: string;keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturnG);
+var
+  Mnd: PMethod;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TBoolCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FHMSet(FRedisClient,PChar(key), @keyValues[0], l, block,boolCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.HSetNX(key,field,value: string;block: Boolean;CmdReturn: TBoolCmdReturn);
@@ -4267,7 +4384,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
 
   New(Mnd);
@@ -4292,7 +4410,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
@@ -4318,7 +4437,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValues[i].Key);
-    redisKVs[i].Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValues[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
   New(Mnd);
   Mnd^.Data := nil;
@@ -4326,6 +4446,60 @@ begin
   FRedisSdkManager.FHSet(FRedisClient, PChar(Key), @redisKVs[0], l, block,
     intCmdResult, Mnd);
 end;
+
+procedure TDxRedisClient.HSet(Key: string; keyValues: array of TRedisKeyValue;
+block: Boolean; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  FRedisSdkManager.FHSet(FRedisClient, PChar(Key), @keyValues[0], l, block,
+    intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HSet(Key: string; keyValues: array of TRedisKeyValue;
+block: Boolean; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FHSet(FRedisClient, PChar(Key), @keyValues[0], l, block,
+    intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HSet(Key: string; keyValues: array of TRedisKeyValue;
+block: Boolean; intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+  i, l: Integer;
+begin
+  l := Length(keyValues);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  FRedisSdkManager.FHSet(FRedisClient, PChar(Key), @keyValues[0], l, block,
+    intCmdResult, Mnd);
+end;
+
 
 procedure TDxRedisClient.Info(sections: array of string; block: Boolean;
 stringCmdReturn: TRedisStringCmdReturn);
@@ -4556,7 +4730,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValueArray[i].Key);
-    redisKVs[i].Value := PChar(keyValueArray[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValueArray[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
 
   New(Mnd);
@@ -4581,7 +4756,8 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValueArray[i].Key);
-    redisKVs[i].Value := PChar(keyValueArray[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValueArray[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
@@ -4607,13 +4783,67 @@ begin
   for i := 0 to l - 1 do
   begin
     redisKVs[i].Key := PChar(keyValueArray[i].Key);
-    redisKVs[i].Value := PChar(keyValueArray[i].Value);
+    redisKVs[i].Value.Value := PChar(keyValueArray[i].Value);
+    redisKVs[i].Value.ValueLen := 0;
   end;
 
   New(Mnd);
   Mnd^.Data := nil;
   TRedisStatusCmdA(Mnd^.Code) := StatusCmdReturn;
   FRedisSdkManager.FMSet(FRedisClient, @redisKVs[0], l, block,
+    statusCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.MSet(keyValueArray: array of TRedisKeyValue; block: Boolean;
+StatusCmdReturn: TRedisStatusCmd);
+var
+  Mnd: PMethod;
+  i, l: Integer;
+begin
+  l := Length(keyValueArray);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(StatusCmdReturn);
+  FRedisSdkManager.FMSet(FRedisClient, @keyValueArray[0], l, block,
+    statusCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.MSet(keyValueArray: array of TRedisKeyValue; block: Boolean;
+StatusCmdReturn: TRedisStatusCmdA);
+var
+  ATemp: TRedisStatusCmd;
+  Mnd: PMethod;
+  l, i: Integer;
+begin
+  l := Length(keyValueArray);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PRedisStatusCmdA(@TMethod(ATemp).Code)^ := StatusCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FMSet(FRedisClient, @keyValueArray[0], l, block,
+    statusCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.MSet(keyValueArray: array of TRedisKeyValue; block: Boolean;
+StatusCmdReturn: TRedisStatusCmdG);
+var
+  Mnd: PMethod;
+  l, i: Integer;
+begin
+  l := Length(keyValueArray);
+  if l = 0 then
+    Exit;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TRedisStatusCmdA(Mnd^.Code) := StatusCmdReturn;
+  FRedisSdkManager.FMSet(FRedisClient, @keyValueArray[0], l, block,
     statusCmdResult, Mnd);
 end;
 
