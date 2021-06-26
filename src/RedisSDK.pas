@@ -6,6 +6,13 @@ uses Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes,
   QSimplePool, qstring, Forms;
 
 type
+  //对应redis的string结构
+  TValueInterface = record
+    ValueLen: Integer;
+    Value: Pointer;
+  end;
+  PValueInterface = ^TValueInterface;
+
   TRedisLogLevel = (llEmergency, llAlert, llFatal, llError, llWarning, llHint,
     llMessage, llDebug);
   TstatusCmdCallback = procedure(redisClient, params: Pointer; CmdResult: PChar;
@@ -19,6 +26,8 @@ type
     cursor: Int64; IsErrResult: Boolean); stdcall;
   TIntCmdCallBack = procedure(redisClient, params: Pointer; intResult: Int64;
     errMsg: PChar); stdcall;
+  //字符串数组指令返回的回调函数
+  TstringSliceCmdCallback = procedure(redisClient, params: Pointer;resultSlice: PValueInterface;sliceLen: Integer;errMsg: Pchar);stdcall;
   //管道执行回调
   TPipeExecCallBack = procedure(pipeClient,params: Pointer;errMsg: PChar);stdcall;
 
@@ -45,7 +54,6 @@ type
 
   // 单机模式配置
   TRedisSingleCfg = record
-    Network: PChar; // tcp utf8
     Addr: PChar;
     Username: PChar;
     Password: PChar;
@@ -54,6 +62,10 @@ type
     DialTimeout: Byte;
     ReadTimeout: Byte;
     WriteTimeout: Byte;
+    MinIdleConns: byte;			//10 在启动阶段创建指定数量的Idle连接，并长期维持idle状态的连接数不少于指定数量；。
+	  PoolTimeout:  byte;			//当所有连接都处在繁忙状态时，客户端等待可用连接的最大等待时长，默认为读超时+1秒。
+	  IdleTimeout:  byte;			//闲置超时，默认5分钟，-1表示取消闲置超时检查
+    MaxConnAge:   Byte;     //连接存活时长，从创建开始计时，超过指定时长则关闭连接，默认为0，即不关闭存活时长较长的连接
   end;
 
   PRedisSingleCfg = ^TRedisSingleCfg;
@@ -68,9 +80,32 @@ type
     DialTimeout: Byte;
     ReadTimeout: Byte;
     WriteTimeout: Byte;
+    MinIdleConns: byte;			//10 在启动阶段创建指定数量的Idle连接，并长期维持idle状态的连接数不少于指定数量；。
+	  PoolTimeout:  byte;			//当所有连接都处在繁忙状态时，客户端等待可用连接的最大等待时长，默认为读超时+1秒。
+	  IdleTimeout:  byte;			//闲置超时，默认5分钟，-1表示取消闲置超时检查
+    MaxConnAge:   Byte;     //连接存活时长，从创建开始计时，超过指定时长则关闭连接，默认为0，即不关闭存活时长较长的连接
   end;
-
   PRedisSentinelCfg = ^TRedisSentinelCfg;
+
+  //集群配置
+  TRedisClusterCfg = record
+    Username: PChar;
+    Password: PChar;
+    ClusterAddrs: PChar;//集群节点地址 ;分割
+    MaxRedirects: Byte;
+    ReadOnly:			Boolean;			//置为true则允许在从节点上执行只含读操作的命令
+    RouteByLatency: Boolean;			//默认false。 置为true则ReadOnly自动置为true,表示在处理只读命令时，可以在一个slot对应的主节点和所有从节点中选取Ping()的响应时长最短的一个节点来读数据
+    RouteRandomly: Boolean;			//默认false。置为true则ReadOnly自动置为true,表示在处理只读命令时，可以在一个slot对应的主节点和所有从节点中随机挑选一个节点来读数据
+    MaxRetries: Byte;
+    DialTimeout: Byte;
+    ReadTimeout: Byte;
+    WriteTimeout: Byte;
+    MinIdleConns: Byte;			//10 在启动阶段创建指定数量的Idle连接，并长期维持idle状态的连接数不少于指定数量；。
+    PoolTimeout: Byte;			//当所有连接都处在繁忙状态时，客户端等待可用连接的最大等待时长，默认为读超时+1秒。
+    IdleTimeout: Byte;			//闲置超时，默认5分钟，-1表示取消闲置超时检查
+    MaxConnAge: Byte;			//连接存活时长，从创建开始计时，超过指定时长则关闭连接，默认为0，即不关闭存活时长较长的连接
+  end;
+  PRedisClusterCfg = ^TRedisClusterCfg;
 
   TWndMsgCmd = (MC_Log, MC_StatusCmd, MC_ScanCmd, MC_SelectScan, MC_StringCmd,
     MC_IntCmd,MC_pipeCmd,MC_BoolCmd);
@@ -82,13 +117,6 @@ type
     params: Pointer;
     Next: PSynWndMessageItem;
   end;
-
-  TValueInterface = record
-    ValueLen: Integer;
-    Value: Pointer;
-  end;
-
-  PValueInterface = ^TValueInterface;
 
   TRedisKeyValue = record
     Key: PChar;
@@ -194,6 +222,24 @@ type
     Member: string;
   end;
 
+  TRedisSort = record
+    desc:     Boolean;  //排序顺序
+    alpha:    Boolean;  //是否是对字符串排序
+    offset,count: int64;
+    by:       pchar;
+    get:      pchar; //\n分割
+  end;
+  PRedisSort = ^TRedisSort;
+
+  TRedisRangeBy = record
+    min,max:  PChar;
+    offset,count: Int64;
+  end;
+  PRedisRangeBy = ^TRedisRangeBy;
+
+  //扫描全部，扫描头      扫描头尾        扫描头中尾
+  TScanStyle = (Scan_All,Scan_Head,Scan_HeadEnd,Scan_Segment);
+
   TDxRedisClient = class
   private
     FRedisSdkManager: TDxRedisSdkManager;
@@ -207,6 +253,14 @@ type
     FRedisClient: Pointer;
     FAddress: string;
     FMaxRetry: Byte;
+    FIdleTimeout: byte;
+    FMaxConnAge: byte;
+    FMinIdleConns: Byte;
+    FPoolTimeout: byte;
+    FMaxRedirects: Byte;
+    FRouteByLatency: Boolean;
+    FRouteRandomly: Boolean;
+    FReadOnly: Boolean;
     procedure SetRedisSdkManager(const Value: TDxRedisSdkManager);
     procedure SetConStyle(const Value: TRedisConStyle);
     procedure SetDefaultDBIndex(const Value: Byte);
@@ -217,6 +271,14 @@ type
     procedure SetUserName(const Value: string);
     procedure SetAddress(const Value: string);
     procedure SetMaxRetry(const Value: Byte);
+    procedure SetIdleTimeout(const Value: byte);
+    procedure SetMaxConnAge(const Value: byte);
+    procedure SetMinIdleConns(const Value: Byte);
+    procedure SetPoolTimeout(const Value: byte);
+    procedure SetMaxRedirects(const Value: Byte);
+    procedure SetReadOnly(const Value: Boolean);
+    procedure SetRouteByLatency(const Value: Boolean);
+    procedure SetRouteRandomly(const Value: Boolean);
   protected
     FRunningCount: Integer; // 正在执行的命令数量
     procedure InitRedisClient;
@@ -1154,6 +1216,15 @@ type
     property Username: string read FUserName write SetUserName;
     property Address: string read FAddress write SetAddress;
     property ConStyle: TRedisConStyle read FConStyle write SetConStyle; // 连接
+    property MinIdleConns: Byte read FMinIdleConns write SetMinIdleConns;
+    property PoolTimeout: byte read FPoolTimeout write SetPoolTimeout;
+    property IdleTimeout: byte read FIdleTimeout write SetIdleTimeout;
+    property MaxConnAge: byte read FMaxConnAge write SetMaxConnAge;
+    //集群属性
+    property MaxRedirects: Byte read FMaxRedirects write SetMaxRedirects; //集群的最大重定向
+    property ReadOnly: Boolean read FReadOnly write SetReadOnly;
+    property RouteByLatency: Boolean read FRouteByLatency write SetRouteByLatency;
+    property RouteRandomly: Boolean read FRouteRandomly write SetRouteRandomly;
   end;
 
   TxAddArgs = record
@@ -1465,6 +1536,32 @@ type
       params: Pointer);stdcall;
     FClientPause: procedure(clientData: Pointer;pauseTimes: integer;block: Boolean;resultCallBack: TIntCmdCallBack;params: Pointer);stdcall;
 
+
+    FBinCanPrint: function(data: Pointer;dataLen: Integer;scanStyle: byte): Boolean;stdcall;
+    FKeys: procedure(cliendData: Pointer;pattern: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSort: procedure(clientData: Pointer;key: Pchar;sort: PRedisSort;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSortStore: procedure(clientData: Pointer;key,storeKey: PChar;sort: PRedisSort;block: Boolean;resultCallBack: TIntCmdCallBack;params: Pointer);stdcall;
+    FHKeys: procedure(clientData: Pointer;key: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FHVals: procedure(clientData: Pointer;key: PChar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FHRandField: procedure(clientData: Pointer;key: Pchar;count: Integer;withValues,block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FBRPop: procedure(clientData: Pointer;timeout: Integer;keys: PChar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FBLPop: procedure(clientData: Pointer;timeout: Integer;keys: PChar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FLPopCount: procedure(clientData: Pointer;key: Pchar;count: integer;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FLRange: procedure(clientData: Pointer;key: PChar;start,stop: Int64;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZRange: procedure(clientData: Pointer;key: PChar;start,stop: Int64;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZRevRange: procedure(clientData: Pointer;key: PChar;start,stop: Int64;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZRangeByScore: procedure(clientData: Pointer;key: Pchar;opt: PRedisRangeBy;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZRangeByLex: procedure(clientData: Pointer;key: Pchar;opt: PRedisRangeBy;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSDiff: procedure(clientData: Pointer;keys: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSUnion: procedure(clientData: Pointer;keys: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSInter: procedure(clientData: Pointer;keys: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSMembers: procedure(clientData: Pointer;key: PChar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSPopN: procedure(clientData: Pointer;key: Pchar;count: Int64;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FSRandMemberN: procedure(clientData: Pointer;key: Pchar;count: Int64;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZRevRangeByScore: procedure(clientData: Pointer;key: Pchar;opt: PRedisRangeBy;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZRevRangeByLex: procedure(clientData: Pointer;key: Pchar;opt: PRedisRangeBy;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZRandMember: procedure(ClientData: Pointer;key: Pchar;count: Integer;withScores,block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FZDiff: procedure(clientData: Pointer;keys: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
     FOnLog: TRedisLogEvent;
     FAsynWnd: THandle;
     FFirst, FLast: PSynWndMessageItem;
@@ -1989,6 +2086,32 @@ begin
     FSIsMember := GetProcAddress(FDllHandle, 'SIsMember');
     FSMove := GetProcAddress(FDllHandle, 'SMove');
     FClientPause := GetProcAddress(FDllHandle, 'ClientPause');
+
+    FBinCanPrint := GetProcAddress(FDllHandle, 'BinCanPrint');
+    FKeys := GetProcAddress(FDllHandle, 'Keys');
+    FSort := GetProcAddress(FDllHandle, 'Sort');
+    FSortStore := GetProcAddress(FDllHandle, 'SortStore');
+    FHKeys := GetProcAddress(FDllHandle, 'HKeys');
+    FHVals := GetProcAddress(FDllHandle, 'HVals');
+    FHRandField := GetProcAddress(FDllHandle, 'HRandField');
+    FBRPop := GetProcAddress(FDllHandle, 'BRPop');
+    FBLPop := GetProcAddress(FDllHandle, 'BLPop');
+    FLPopCount := GetProcAddress(FDllHandle, 'LPopCount');
+    FLRange := GetProcAddress(FDllHandle, 'LRange');
+    FSDiff := GetProcAddress(FDllHandle, 'SDiff');
+    FSUnion := GetProcAddress(FDllHandle, 'SUnion');
+    FSInter := GetProcAddress(FDllHandle, 'SInter');
+    FSMembers := GetProcAddress(FDllHandle, 'SMembers');
+    FSPopN := GetProcAddress(FDllHandle, 'SPopN');
+    FSRandMemberN := GetProcAddress(FDllHandle, 'SRandMemberN');
+    FZRange := GetProcAddress(FDllHandle, 'ZRange');
+    FZRangeByScore := GetProcAddress(FDllHandle, 'ZRangeByScore');
+    FZRangeByLex := GetProcAddress(FDllHandle, 'ZRangeByLex');
+    FZRevRange := GetProcAddress(FDllHandle, 'ZRevRange');
+    FZRevRangeByScore := GetProcAddress(FDllHandle, 'ZRevRangeByScore');
+    FZRevRangeByLex := GetProcAddress(FDllHandle, 'ZRevRangeByLex');
+    FZRandMember := GetProcAddress(FDllHandle, 'ZRandMember');
+    FZDiff := GetProcAddress(FDllHandle, 'ZDiff');
 
     // 确保本窗口是在主消息线程中，否则需要在相应的线程中做独立的线程内的消息循环
     if GetCurrentThreadId <> MainThreadID then
@@ -4590,6 +4713,7 @@ procedure TDxRedisClient.InitRedisClient;
 var
   singCfg: TRedisSingleCfg;
   Sentinel: TRedisSentinelCfg;
+  ClusterCfg: TRedisClusterCfg;
   redisCfg: TRedisConfig;
 begin
   redisCfg.ConStyle := FConStyle;
@@ -4598,7 +4722,6 @@ begin
     RedisConSingle:
       begin
         FillChar(singCfg, Sizeof(singCfg), 0);
-        singCfg.Network := 'tcp';
         singCfg.MaxRetries := FMaxRetry;
         singCfg.Addr := PChar(FAddress);
         singCfg.Username := PChar(FUserName);
@@ -4607,6 +4730,10 @@ begin
         singCfg.DialTimeout := FDialTimeout;
         singCfg.ReadTimeout := FReadTimeout;
         singCfg.WriteTimeout := FWriteTimeout;
+        singCfg.MaxConnAge := FMaxConnAge;
+        singCfg.PoolTimeout := FPoolTimeout;
+        singCfg.IdleTimeout := FIdleTimeout;
+        singCfg.MinIdleConns := FMinIdleConns;
 
         redisCfg.Data := @singCfg;
         FRedisClient := FRedisSdkManager.FNewRedisConnection(@redisCfg);
@@ -4622,12 +4749,35 @@ begin
         Sentinel.DialTimeout := FDialTimeout;
         Sentinel.ReadTimeout := FReadTimeout;
         Sentinel.WriteTimeout := FWriteTimeout;
-
+        Sentinel.MaxConnAge := FMaxConnAge;
+        Sentinel.PoolTimeout := FPoolTimeout;
+        Sentinel.IdleTimeout := FIdleTimeout;
+        Sentinel.MinIdleConns := FMinIdleConns;
         redisCfg.Data := @Sentinel;
         FRedisClient := FRedisSdkManager.FNewRedisConnection(@redisCfg);
       end;
     RedisConCluster:
-      ;
+      begin
+        FillChar(ClusterCfg, Sizeof(ClusterCfg), 0);
+        ClusterCfg.MaxRetries := FMaxRetry;
+        ClusterCfg.MaxRedirects := FMaxRedirects;
+        ClusterCfg.ReadOnly := FReadOnly;
+        ClusterCfg.RouteByLatency := FRouteByLatency;
+        ClusterCfg.RouteRandomly := FRouteRandomly;
+        ClusterCfg.ClusterAddrs := PChar(FAddress);
+        ClusterCfg.Username := PChar(FUserName);
+        ClusterCfg.Password := PChar(FPassword);
+        ClusterCfg.DialTimeout := FDialTimeout;
+        ClusterCfg.ReadTimeout := FReadTimeout;
+        ClusterCfg.WriteTimeout := FWriteTimeout;
+        ClusterCfg.MaxConnAge := FMaxConnAge;
+        ClusterCfg.PoolTimeout := FPoolTimeout;
+        ClusterCfg.IdleTimeout := FIdleTimeout;
+        ClusterCfg.MinIdleConns := FMinIdleConns;
+
+        redisCfg.Data := @Sentinel;
+        FRedisClient := FRedisSdkManager.FNewRedisConnection(@redisCfg);
+      end;
   end;
   if FRedisClient <> nil then
     FRedisSdkManager.FClients.Add(self)
@@ -5593,9 +5743,29 @@ begin
     expiration, block, statusCmdResult, Mnd);
 end;
 
+procedure TDxRedisClient.SetIdleTimeout(const Value: byte);
+begin
+  FIdleTimeout := Value;
+end;
+
+procedure TDxRedisClient.SetMaxConnAge(const Value: byte);
+begin
+  FMaxConnAge := Value;
+end;
+
+procedure TDxRedisClient.SetMaxRedirects(const Value: Byte);
+begin
+  FMaxRedirects := Value;
+end;
+
 procedure TDxRedisClient.SetMaxRetry(const Value: Byte);
 begin
   FMaxRetry := Value;
+end;
+
+procedure TDxRedisClient.SetMinIdleConns(const Value: Byte);
+begin
+  FMinIdleConns := Value;
 end;
 
 procedure TDxRedisClient.SetEx(Key: string; ValueBuffer: PByte;
@@ -5631,6 +5801,11 @@ end;
 procedure TDxRedisClient.SetPassword(const Value: string);
 begin
   FPassword := Value;
+end;
+
+procedure TDxRedisClient.SetPoolTimeout(const Value: byte);
+begin
+  FPoolTimeout := Value;
 end;
 
 procedure TDxRedisClient.SetRange(Key: string; offset: Int64; Value: string;
@@ -5756,6 +5931,11 @@ begin
     intCmdResult, Mnd);
 end;
 
+procedure TDxRedisClient.SetReadOnly(const Value: Boolean);
+begin
+  FReadOnly := Value;
+end;
+
 procedure TDxRedisClient.SetReadTimeout(const Value: Byte);
 begin
   FReadTimeout := Value;
@@ -5771,6 +5951,16 @@ begin
     if FRedisSdkManager <> nil then
       InitRedisClient;
   end;
+end;
+
+procedure TDxRedisClient.SetRouteByLatency(const Value: Boolean);
+begin
+  FRouteByLatency := Value;
+end;
+
+procedure TDxRedisClient.SetRouteRandomly(const Value: Boolean);
+begin
+  FRouteRandomly := Value;
 end;
 
 procedure TDxRedisClient.SetUserName(const Value: string);

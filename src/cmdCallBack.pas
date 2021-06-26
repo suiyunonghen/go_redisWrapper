@@ -1,7 +1,7 @@
 unit cmdCallBack;
 
 interface
-uses Winapi.Windows,System.SysUtils,System.Classes,utils_buffer, RedisSDK,redisPipeline,qstring;
+uses Winapi.Windows,System.SysUtils,System.Classes,RedisSDK,redisPipeline,qstring;
 
 type
   TLogData = record
