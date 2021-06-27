@@ -108,7 +108,7 @@ type
   PRedisClusterCfg = ^TRedisClusterCfg;
 
   TWndMsgCmd = (MC_Log, MC_StatusCmd, MC_ScanCmd, MC_SelectScan, MC_StringCmd,
-    MC_IntCmd,MC_pipeCmd,MC_BoolCmd);
+    MC_IntCmd,MC_pipeCmd,MC_BoolCmd,MC_StringSliceCmd);
 
   PSynWndMessageItem = ^TSynWndMessageItem;
 
@@ -187,6 +187,11 @@ type
   PPipelineExecReturnA = ^TPipelineExecReturnA;
   TPipelineExecReturnG = procedure(ErrMsg: string);
 
+  TStringSliceCmdReturn = procedure(Sender: Tobject; resultSlice: array of TValueInterface;errMsg: string) of object;
+  TStringSliceCmdReturnA = reference to procedure(resultSlice: array of TValueInterface;errMsg: string);
+  PStringSliceCmdReturnA = ^TStringSliceCmdReturnA;
+  TStringSliceCmdReturnG = procedure(resultSlice: array of TValueInterface;errMsg: string);
+
   TKeyValue = record
     Key: string;
     Value: string;
@@ -236,9 +241,6 @@ type
     offset,count: Int64;
   end;
   PRedisRangeBy = ^TRedisRangeBy;
-
-  //…®√Ë»´≤ø£¨…®√ËÕ∑      …®√ËÕ∑Œ≤        …®√ËÕ∑÷–Œ≤
-  TScanStyle = (Scan_All,Scan_Head,Scan_HeadEnd,Scan_Segment);
 
   TDxRedisClient = class
   private
@@ -1205,6 +1207,80 @@ type
     procedure ClientPause(pauseTime: Integer;block: Boolean;CmdReturn: TBoolCmdReturnA); overload;
     procedure ClientPause(pauseTime: Integer;block: Boolean;CmdReturn: TBoolCmdReturnG); overload;
 
+    procedure Keys(pattern: string;block: Boolean;cmdReturn: TRedisScanCmdReturn);overload;
+    procedure Keys(pattern: string;block: Boolean;cmdReturn: TRedisScanCmdReturnA);overload;
+    procedure Keys(pattern: string;block: Boolean;cmdReturn: TRedisScanCmdReturnG);overload;
+
+    procedure Sort(key: string;sort: TRedisSort;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure Sort(key: string;sort: TRedisSort;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure Sort(key: string;sort: TRedisSort;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure SortStore(key,storeKey: string;sort: TRedisSort;block: Boolean;cmdReturn: TIntCmdReturn);overload;
+    procedure SortStore(key,storeKey: string;sort: TRedisSort;block: Boolean;cmdReturn: TIntCmdReturnA);overload;
+    procedure SortStore(key,storeKey: string;sort: TRedisSort;block: Boolean;cmdReturn: TIntCmdReturnG);overload;
+    procedure HKeys(key: string;block: Boolean;cmdReturn: TRedisScanCmdReturn);overload;
+    procedure HKeys(key: string;block: Boolean;cmdReturn: TRedisScanCmdReturnA);overload;
+    procedure HKeys(key: string;block: Boolean;cmdReturn: TRedisScanCmdReturnG);overload;
+    procedure HVals(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure HVals(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure HVals(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure HRandField(key: string;count: integer;withValues,block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure HRandField(key: string;count: integer;withValues,block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure HRandField(key: string;count: integer;withValues,block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure BRPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure BRPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure BRPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure BLPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure BLPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure BLPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure LPopCount(key: string;count: Integer;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure LPopCount(key: string;count: Integer;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure LPopCount(key: string;count: Integer;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure LRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure LRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure LRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZRevRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZRevRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZRevRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZRangeByScore(key: string;opt: TRedisRangeBy;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure SDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure SDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure SDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure SUnion(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure SUnion(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure SUnion(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure SInter(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure SInter(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure SInter(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure SMembers(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure SMembers(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure SMembers(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure SPopN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure SPopN(key: string;count: Int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure SPopN(key: string;count: Int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure SRandMemberN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure SRandMemberN(key: string;count: Int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure SRandMemberN(key: string;count: Int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZRevRangeByScore(key: string;opt: TRedisRangeBy;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZRevRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZRevRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZRevRangeByLex(key: string;opt: TRedisRangeBy;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZRevRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZRevRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZRandMember(key: string;count: Integer;withScores,block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZRandMember(key: string;count: Integer;withScores,block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZRandMember(key: string;count: Integer;withScores,block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+    procedure ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);overload;
+    procedure ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
+    procedure ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
+
     property RedisSdkManager: TDxRedisSdkManager read FRedisSdkManager
       write SetRedisSdkManager;
     property DefaultDBIndex: Byte read FDefaultDBIndex write SetDefaultDBIndex;
@@ -1240,6 +1316,10 @@ type
 
   TRedisLogEvent = procedure(Sender: Tobject; logLevel: TRedisLogLevel;
     logMsg: string) of object;
+
+
+  //…®√Ë»´≤ø£¨…®√ËÕ∑      …®√ËÕ∑Œ≤        …®√ËÕ∑÷–Œ≤
+  TScanStyle = (Scan_All,Scan_Head,Scan_HeadEnd,Scan_Segment);
 
   TDxRedisSdkManager = class
   private
@@ -1538,10 +1618,10 @@ type
 
 
     FBinCanPrint: function(data: Pointer;dataLen: Integer;scanStyle: byte): Boolean;stdcall;
-    FKeys: procedure(cliendData: Pointer;pattern: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FKeys: procedure(cliendData: Pointer;pattern: Pchar;block: Boolean;resultCallBack: TScanCmdCallback;params: Pointer);stdcall;
     FSort: procedure(clientData: Pointer;key: Pchar;sort: PRedisSort;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
     FSortStore: procedure(clientData: Pointer;key,storeKey: PChar;sort: PRedisSort;block: Boolean;resultCallBack: TIntCmdCallBack;params: Pointer);stdcall;
-    FHKeys: procedure(clientData: Pointer;key: Pchar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
+    FHKeys: procedure(clientData: Pointer;key: Pchar;block: Boolean;resultCallBack: TScanCmdCallback;params: Pointer);stdcall;
     FHVals: procedure(clientData: Pointer;key: PChar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
     FHRandField: procedure(clientData: Pointer;key: Pchar;count: Integer;withValues,block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
     FBRPop: procedure(clientData: Pointer;timeout: Integer;keys: PChar;block: Boolean;resultCallBack: TstringSliceCmdCallback;params: Pointer);stdcall;
@@ -1588,6 +1668,7 @@ type
     procedure DoIntCmdMsg(intResult: Pointer);
     procedure DoBoolCmdMsg(boolResult: Pointer);
     procedure DoPipeCmdMsg(pipeResult: Pointer);
+    procedure DoStringSliceCmd(sliceResult: Pointer);
     procedure Wakeup; inline;
 
   public
@@ -1599,6 +1680,7 @@ type
     property count: Integer read GetCount;
     property Clients[index: Integer]: TDxRedisClient read GetClients;
     procedure DisConnectAll;
+    function BinCanPrint(data: Pointer;dataLen: Integer;scanStyle: TScanStyle): Boolean;
   end;
 
 implementation
@@ -1674,6 +1756,12 @@ begin
     ProcessRedisMsgs
   else
     AMsg.Result := DefWindowProc(FAsynWnd, AMsg.Msg, AMsg.WParam, AMsg.LParam);
+end;
+
+function TDxRedisSdkManager.BinCanPrint(data: Pointer; dataLen: Integer;
+  scanStyle: TScanStyle): Boolean;
+begin
+  result := Assigned(FBinCanPrint) and FBinCanPrint(data,dataLen,ord(scanStyle));
 end;
 
 constructor TDxRedisSdkManager.Create;
@@ -1944,6 +2032,38 @@ begin
   end;
 end;
 
+procedure TDxRedisSdkManager.DoStringSliceCmd(sliceResult: Pointer);
+var
+  sliceCmdResult: PRedisStringSliceCmdResult;
+  i: Integer;
+begin
+  sliceCmdResult := sliceResult;
+  try
+    try
+      if PMethod(sliceCmdResult^.params)^.Code <> nil then
+      begin
+        if PMethod(sliceCmdResult^.params)^.Data = nil then
+          TStringSliceCmdReturnG(PMethod(sliceCmdResult^.params)^.Code)(sliceCmdResult^.values,sliceCmdResult^.errMsg)
+        else if PMethod(sliceCmdResult^.params)^.Data = Pointer(-1) then
+        begin
+          TStringSliceCmdReturnA(PMethod(sliceCmdResult^.params)^.Code)(sliceCmdResult^.values,sliceCmdResult^.errMsg);
+          PMethod(sliceCmdResult^.params)^.Code := nil;
+        end
+        else
+          TStringSliceCmdReturn(PMethod(sliceCmdResult^.params)^)(sliceCmdResult^.client,sliceCmdResult^.values,sliceCmdResult^.errMsg);
+      end;
+    except
+    end;
+  finally
+    if Length(sliceCmdResult^.values) > 0 then
+    begin
+      for i := Low(sliceCmdResult^.values) to High(sliceCmdResult^.values) do
+        FreeMemory(sliceCmdResult^.values[i].Value);
+    end;
+    Dispose(sliceCmdResult^.params);
+  end;
+end;
+
 function TDxRedisSdkManager.GetActive: Boolean;
 begin
   Result := FDllHandle > 0;
@@ -2197,6 +2317,7 @@ begin
           MC_IntCmd:
             DoIntCmdMsg(AItem^.params);
           MC_BoolCmd: DoBoolCmdMsg(AItem^.params);
+          MC_StringSliceCmd: DoStringSliceCmd(AItem^.params);
           MC_pipeCmd:
             DoPipeCmdMsg(AItem^.params);
         end;
@@ -3379,7 +3500,7 @@ end;
 procedure TDxRedisClient.MSetNX(keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturn);
 var
   Mnd: PMethod;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -3394,7 +3515,7 @@ procedure TDxRedisClient.MSetNX(keyValues: array of TRedisKeyValue;block: Boolea
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -3411,7 +3532,7 @@ end;
 procedure TDxRedisClient.MSetNX(keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturnG);
 var
   Mnd: PMethod;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -3673,7 +3794,7 @@ end;
 procedure TDxRedisClient.HMSet(key: string; keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturn);
 var
   Mnd: PMethod;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -3688,7 +3809,7 @@ procedure TDxRedisClient.HMSet(key: string;keyValues: array of TRedisKeyValue;bl
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -3705,7 +3826,7 @@ end;
 procedure TDxRedisClient.HMSet(key: string;keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturnG);
 var
   Mnd: PMethod;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -4574,7 +4695,7 @@ procedure TDxRedisClient.HSet(Key: string; keyValues: array of TRedisKeyValue;
 block: Boolean; intCmdReturn: TIntCmdReturn);
 var
   Mnd: PMethod;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -4591,7 +4712,7 @@ block: Boolean; intCmdReturn: TIntCmdReturnA);
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -4610,7 +4731,7 @@ procedure TDxRedisClient.HSet(Key: string; keyValues: array of TRedisKeyValue;
 block: Boolean; intCmdReturn: TIntCmdReturnG);
 var
   Mnd: PMethod;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValues);
   if l = 0 then
@@ -4948,7 +5069,7 @@ procedure TDxRedisClient.MSet(keyValueArray: array of TRedisKeyValue; block: Boo
 StatusCmdReturn: TRedisStatusCmd);
 var
   Mnd: PMethod;
-  i, l: Integer;
+  l: Integer;
 begin
   l := Length(keyValueArray);
   if l = 0 then
@@ -4965,7 +5086,7 @@ StatusCmdReturn: TRedisStatusCmdA);
 var
   ATemp: TRedisStatusCmd;
   Mnd: PMethod;
-  l, i: Integer;
+  l: Integer;
 begin
   l := Length(keyValueArray);
   if l = 0 then
@@ -4984,7 +5105,7 @@ procedure TDxRedisClient.MSet(keyValueArray: array of TRedisKeyValue; block: Boo
 StatusCmdReturn: TRedisStatusCmdG);
 var
   Mnd: PMethod;
-  l, i: Integer;
+  l: Integer;
 begin
   l := Length(keyValueArray);
   if l = 0 then
@@ -9759,6 +9880,1067 @@ begin
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
   FRedisSdkManager.FZRemRangeByLex(FRedisClient, PChar(Key), PChar(min),
     PChar(max), block, intCmdResult, Mnd);
+end;
+
+
+procedure TDxRedisClient.Keys(pattern: string; block: Boolean;
+  cmdReturn: TRedisScanCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FKeys(FRedisClient, PChar(pattern),block, scanCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.Keys(pattern: string; block: Boolean;
+  cmdReturn: TRedisScanCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FKeys(FRedisClient, PChar(pattern),block, scanCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.Keys(pattern: string; block: Boolean;
+  cmdReturn: TRedisScanCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TRedisScanCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FKeys(FRedisClient, PChar(pattern),block, scanCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.Sort(key: string; sort: TRedisSort; block: Boolean;
+  cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSort(FRedisClient, PChar(key),@sort,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.Sort(key: string; sort: TRedisSort; block: Boolean;
+  cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSort(FRedisClient, PChar(key),@sort,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.Sort(key: string; sort: TRedisSort; block: Boolean;
+  cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSort(FRedisClient, PChar(key),@sort,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SortStore(key,storeKey: string; sort: TRedisSort; block: Boolean;
+  cmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSortStore(FRedisClient, PChar(key),PChar(storeKey),@sort,block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SortStore(key,storeKey: string; sort: TRedisSort; block: Boolean;
+  cmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSortStore(FRedisClient, PChar(key),PChar(storeKey),@sort,block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SortStore(key,storeKey: string; sort: TRedisSort; block: Boolean;
+  cmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSortStore(FRedisClient, PChar(key),PChar(storeKey),@sort,block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HKeys(key: string; block: Boolean;
+  cmdReturn: TRedisScanCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FHKeys(FRedisClient, PChar(key),block, scanCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HKeys(key: string; block: Boolean;
+  cmdReturn: TRedisScanCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FHKeys(FRedisClient, PChar(key),block, scanCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HKeys(key: string; block: Boolean;
+  cmdReturn: TRedisScanCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TRedisScanCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FHKeys(FRedisClient, PChar(key),block, scanCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HVals(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FHVals(FRedisClient, PChar(key),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HVals(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FHVals(FRedisClient, PChar(key),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HVals(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FHVals(FRedisClient, PChar(key),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HRandField(key: string;count: integer;withValues,block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FHRandField(FRedisClient, PChar(key),count,withValues,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HRandField(key: string;count: integer;withValues,block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FHRandField(FRedisClient, PChar(key),count,withValues,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HRandField(key: string;count: integer;withValues,block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FHRandField(FRedisClient, PChar(key),count,withValues,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.BRPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FBRPop(FRedisClient,timeout,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.BRPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FBRPop(FRedisClient,timeout,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.BRPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FBRPop(FRedisClient,timeout,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.BLPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FBLPop(FRedisClient,timeout,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.BLPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FBLPop(FRedisClient,timeout,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.BLPop(timeout: integer;Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FBLPop(FRedisClient,timeout,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LPopCount(key: string;count: integer;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FLPopCount(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LPopCount(key: string;count: integer;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FLPopCount(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LPopCount(key: string;count: integer;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FLPopCount(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FLRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FLRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FLRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZRevRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZRevRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRange(key: string;start,stop: int64;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZRevRange(FRedisClient, PChar(key),start,stop,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZRangeByScore(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZRangeByScore(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZRangeByScore(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZRangeByLex(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZRangeByLex(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZRangeByLex(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+
+procedure TDxRedisClient.SDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSDiff(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSDiff(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSDiff(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+
+procedure TDxRedisClient.SUnion(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSUnion(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SUnion(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSUnion(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SUnion(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSUnion(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SInter(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSInter(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SInter(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSInter(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SInter(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSInter(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+
+procedure TDxRedisClient.SMembers(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSMembers(FRedisClient, PChar(key),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SMembers(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSMembers(FRedisClient, PChar(key),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SMembers(key: string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSMembers(FRedisClient, PChar(key),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SPopN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSPopN(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SPopN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSPopN(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SPopN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSPopN(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SRandMemberN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSRandMemberN(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SRandMemberN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSRandMemberN(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.SRandMemberN(key: string;count: Int64; block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSRandMemberN(FRedisClient, PChar(key),count,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZRevRangeByScore(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZRevRangeByScore(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRangeByScore(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZRevRangeByScore(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZRevRangeByLex(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZRevRangeByLex(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRevRangeByLex(key: string;opt: TRedisRangeBy;block:Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZRevRangeByLex(FRedisClient, PChar(key),@opt,block, stringSliceCmdResult, Mnd);
+end;
+
+
+procedure TDxRedisClient.ZRandMember(key: string;count: Integer; withScores,block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZRandMember(FRedisClient, PChar(key),count,withScores,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRandMember(key: string;count: Integer; withScores,block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZRandMember(FRedisClient, PChar(key),count,withScores,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZRandMember(key: string;count: Integer; withScores,block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZRandMember(FRedisClient, PChar(key),count,withScores,block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FZDiff(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FZDiff(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  KeyStr: string;
+  i: Integer;
+begin
+  if Length(Keys) = 0 then
+    Exit;
+
+  for i := Low(Keys) to High(Keys) do
+  begin
+    if i = Low(Keys) then
+      KeyStr := Keys[i]
+    else KeyStr := KeyStr + #10 + Keys[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FZDiff(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
 end;
 
 end.

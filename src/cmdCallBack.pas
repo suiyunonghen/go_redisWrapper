@@ -13,7 +13,7 @@ type
 
   TRedisStatusResult = record
     IsErrResult: Boolean;
-    client: TDxRedisClient;
+    client: Pointer;
     params: Pointer;
     CmdResult: string;
   end;
@@ -23,7 +23,7 @@ type
   TRedisScanResult = record
     IsErrResult: Boolean;
     cursor: UInt64;
-    client: TDxRedisClient;
+    client: Pointer;
     params: Pointer;
     keys: string;
   end;
@@ -33,7 +33,7 @@ type
   TRedisStringByteResult = record
     IsErrResult: Boolean;
     strValue: string;
-    client: TDxRedisClient;
+    client: Pointer;
     params: Pointer;
     Buffer: PByte;
     BufferLen: Integer;
@@ -56,21 +56,30 @@ type
   PSelectCmdMethod = ^TSelectCmdMethod;
 
   TRedisIntResult = record
-    client: TDxRedisClient;
+    client: Pointer;
     params: Pointer;
     CmdResult: Int64;
     errMsg: string;
   end;
-
   PRedisIntResult = ^TRedisIntResult;
+
+  TRedisStringSliceCmdResult = record
+    client: Pointer;
+    params: Pointer;
+    errMsg: string;
+    values: array of TValueInterface;
+  end;
+  PRedisStringSliceCmdResult = ^TRedisStringSliceCmdResult;
+
 procedure LogProc(Data: Pointer; logLevel: Integer; logMsg: PChar); stdcall;
 procedure statusCmdResult(redisClient, params: Pointer; CmdResult: PChar;IsErrResult: Boolean); stdcall;
 procedure stringCmdResult(redisClient, params: Pointer; CmdResult: Pointer;resultLen: Integer; IsErrResult: Boolean); stdcall;
 procedure intCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
 procedure PipeExecReturn(pipeClient,params: Pointer;errMsg: PChar);stdcall;
 procedure scanCmdResult(redisClient, params: Pointer; keys: PChar;cursor: Int64; IsErrResult: Boolean); stdcall;
-
 procedure boolCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
+
+procedure stringSliceCmdResult(redisClient, params: Pointer;resultSlice: PValueInterface;sliceLen: Integer;errMsg: Pchar);stdcall;
 implementation
 
 type
@@ -419,6 +428,65 @@ begin
       end
       else
         TRedisScanCmdReturn(PMethod(params)^)(redisClient, keyArray, cursor, errMsg);
+    end;
+    Dispose(params);
+  end;
+  if pipeClient = nil then
+    AtomicDecrement(TDxRedisClientEx(rclient).FRunningCount, 1);
+end;
+
+procedure stringSliceCmdResult(redisClient, params: Pointer;resultSlice: PValueInterface;sliceLen: Integer;errMsg: Pchar);stdcall;
+var
+  rClient: TDxRedisClient;
+  pipeClient: TDxPipeClient;
+  err: string;
+  i: Integer;
+  values: array of TValueInterface;
+  CmdResult: PRedisStringSliceCmdResult;
+begin
+  if TObject(redisClient).InheritsFrom(TDxRedisClient) then
+  begin
+    rClient := redisClient;
+    pipeClient := nil;
+  end
+  else
+  begin
+    pipeClient := redisClient;
+    rClient := pipeClient.Owner;
+  end;
+
+  err := StrPas(errMsg);
+  if GetCurrentThreadId <> MainThreadID then
+  begin
+    New(CmdResult);
+    CmdResult^.client := redisClient;
+    CmdResult^.errMsg := err;
+    CmdResult^.params := params;
+    SetLength(CmdResult^.values,sliceLen);
+    for i := 0 to sliceLen - 1 do
+    begin
+      CmdResult^.values[i].ValueLen := resultSlice^.ValueLen;
+      CmdResult^.values[i].Value := GetMemory(resultSlice^.ValueLen);
+      Move(resultSlice^.Value^,CmdResult^.values[i].Value^,resultSlice^.ValueLen);
+      Inc(resultSlice,sizeof(TValueInterface));
+    end;
+    TDxRedisSdkManagerEx(rclient.RedisSdkManager).PostRedisMsg(MC_StringSliceCmd, CmdResult);
+  end
+  else
+  begin
+    if PMethod(params)^.Code <> nil then
+    begin
+      SetLength(values,sliceLen);
+      Move(resultSlice^,values[0],SizeOf(TValueInterface) * sliceLen);
+      if PMethod(params)^.Data = nil then
+        TStringSliceCmdReturnG(PMethod(params)^.Code)(values,err)
+      else if PMethod(params)^.Data = Pointer(-1) then
+      begin
+        TStringSliceCmdReturnA(PMethod(params)^.Code)(values,err);
+        PMethod(params)^.Code := nil;
+      end
+      else
+        TStringSliceCmdReturn(PMethod(params)^)(redisClient, values,err);
     end;
     Dispose(params);
   end;
