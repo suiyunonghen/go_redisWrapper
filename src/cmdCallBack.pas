@@ -17,15 +17,24 @@ type
     params: Pointer;
     CmdResult: string;
   end;
-
   PRedisStatusResult = ^TRedisStatusResult;
 
+  TScanResultType = (
+    scanResultErr,
+    scanResultKeyStr,	                  //返回Key字符串列表\r\n区分
+    scanResultKeyValue,					  //2表示keyValue 数组
+    scanResultValue						  // valueInterface数组
+  );
+
   TRedisScanResult = record
-    IsErrResult: Boolean;
+    resultType: TScanResultType;
     cursor: UInt64;
     client: Pointer;
     params: Pointer;
-    keys: string;
+    keys: array of string;
+    ErrMsg: string;
+    values: array of TValueInterface;
+    KeyValues: array of TKeyValueEx;
   end;
 
   PRedisScanResult = ^TRedisScanResult;
@@ -55,6 +64,13 @@ type
 
   PSelectCmdMethod = ^TSelectCmdMethod;
 
+  TScanMethod = record
+    ScanResultType: TScanResultType;
+    Method: TMethod;
+  end;
+  PScanMethod = ^TScanMethod;
+
+
   TRedisIntResult = record
     client: Pointer;
     params: Pointer;
@@ -76,7 +92,7 @@ procedure statusCmdResult(redisClient, params: Pointer; CmdResult: PChar;IsErrRe
 procedure stringCmdResult(redisClient, params: Pointer; CmdResult: Pointer;resultLen: Integer; IsErrResult: Boolean); stdcall;
 procedure intCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
 procedure PipeExecReturn(pipeClient,params: Pointer;errMsg: PChar);stdcall;
-procedure scanCmdResult(redisClient, params: Pointer; keys: PChar;cursor: Int64; IsErrResult: Boolean); stdcall;
+procedure scanCmdResult(redisClient, params: Pointer; results: Pointer;ValuesLen: Integer;cursor: Int64; resultType: Byte); stdcall;
 procedure boolCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
 
 procedure stringSliceCmdResult(redisClient, params: Pointer;resultSlice: PValueInterface;sliceLen: Integer;errMsg: Pchar);stdcall;
@@ -366,15 +382,19 @@ begin
   AtomicDecrement(TDxRedisClientEx(rclient).FRunningCount, 1);
 end;
 
-procedure scanCmdResult(redisClient, params: Pointer; keys: PChar;cursor: Int64; IsErrResult: Boolean); stdcall;
+procedure scanCmdResult(redisClient, params: Pointer; results: Pointer;ValuesLen: Integer;cursor: Int64; resultType: Byte); stdcall;
 var
   rClient: TDxRedisClient;
   pipeClient: TDxPipeClient;
   errMsg: string;
   keyArray: array of string;
-  l: Integer;
+  value: array of TValueInterface;
+  keyValue: array of TKeyValueEx;
+  i,l: Integer;
   p: PChar;
   scanCmdResult: PRedisScanResult;
+  resultSlice: PValueInterface;
+  keySlice: PRedisKeyValue;
 begin
   if TObject(redisClient).InheritsFrom(TDxRedisClient) then
   begin
@@ -390,44 +410,188 @@ begin
   begin
     New(scanCmdResult);
     scanCmdResult^.client := redisClient;
-    scanCmdResult^.IsErrResult := IsErrResult;
+    scanCmdResult^.resultType := TScanResultType(resultType);
     scanCmdResult^.params := params;
-    scanCmdResult^.keys := StrPas(keys);
+    case TScanResultType(resultType) of
+    scanResultErr: scanCmdResult^.ErrMsg := StrPas(PChar(results));
+    scanResultKeyValue:
+      begin
+        SetLength(scanCmdResult^.KeyValues, ValuesLen);
+        keySlice := results;
+        for i := 0 to ValuesLen - 1 do
+        begin
+          scanCmdResult^.keyValues[i].Key := StrPas(keySlice^.Key);
+          scanCmdResult^.keyValues[i].value.ValueLen := keySlice^.Value.ValueLen;
+          scanCmdResult^.keyValues[i].value.Value := GetMemory(keySlice^.Value.ValueLen);
+          Move(keySlice^.Value.Value^,scanCmdResult^.keyValues[i].Value.Value^,keySlice^.Value.ValueLen);
+          Inc(keySlice);
+        end;
+      end;
+    scanResultKeyStr:
+      begin
+        SetLength(scanCmdResult^.keys, 4);
+        l := 0;
+        p := results;
+        repeat
+          scanCmdResult^.keys[l] := DecodeTokenW(p, #13#10, #0, False);
+          Inc(l);
+          if (l = Length(scanCmdResult^.keys)) and (p^ <> #0) then
+            SetLength(scanCmdResult^.keys, l + 4);
+        until p^ = #0;
+        SetLength(scanCmdResult^.keys, l);
+      end;
+    scanResultValue:
+      begin
+        SetLength(scanCmdResult^.values, ValuesLen);
+        resultSlice := results;
+        for i := 0 to ValuesLen - 1 do
+        begin
+          scanCmdResult^.values[i].ValueLen := resultSlice^.ValueLen;
+          scanCmdResult^.values[i].Value := GetMemory(resultSlice^.ValueLen);
+          Move(resultSlice^.Value^,scanCmdResult^.values[i].Value^,resultSlice^.ValueLen);
+          Inc(resultSlice);
+        end;
+      end;
+    end;
     scanCmdResult^.cursor := cursor;
     TDxRedisSdkManagerEx(rclient.RedisSdkManager).PostRedisMsg(MC_ScanCmd, scanCmdResult);
   end
   else
   begin
-    if PMethod(params)^.Code <> nil then
+    if PScanMethod(params)^.Method.Code <> nil then
     begin
-      if IsErrResult then
-      begin
-        SetLength(keyArray, 0);
-        errMsg := StrPas(keys);
-      end
-      else
-      begin
-        errMsg := '';
-        SetLength(keyArray, 4);
-        l := 0;
-        p := keys;
-        repeat
-          keyArray[l] := DecodeTokenW(p, #13#10, #0, False);
-          Inc(l);
-          if (l = Length(keyArray)) and (p^ <> #0) then
-            SetLength(keyArray, l + 4);
-        until p^ = #0;
-        SetLength(keyArray, l);
+      case TScanResultType(resultType) of
+      scanResultErr:
+        begin
+          errMsg := StrPas(PChar(results));
+          case PScanMethod(params)^.ScanResultType of
+          scanResultKeyStr:
+            begin
+              SetLength(keyArray, 0);
+              if PScanMethod(params)^.Method.Data = nil then
+                TRedisScanCmdReturnG(PScanMethod(params)^.Method.Code)(keyArray, cursor, errMsg)
+              else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+              begin
+                TRedisScanCmdReturnA(PScanMethod(params)^.Method.Code)(keyArray, cursor, errMsg);
+                PScanMethod(params)^.Method.Code := nil;
+              end
+              else
+                TRedisScanCmdReturn(PScanMethod(params)^.Method)(redisClient, keyArray, cursor, errMsg);
+            end;
+          scanResultValue:
+            begin
+              SetLength(value, 0);
+              if PScanMethod(params)^.Method.Data = nil then
+                TRedisScanValueCmdReturnG(PScanMethod(params)^.Method.Code)(value,cursor, errMsg)
+              else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+              begin
+                TRedisScanValueCmdReturnA(PScanMethod(params)^.Method.Code)(value,cursor, errMsg);
+                PScanMethod(params)^.Method.Code := nil;
+              end
+              else
+                TRedisScanValueCmdReturn(PScanMethod(params)^.Method)(redisClient, value,cursor, errMsg);
+            end;
+          scanResultKeyValue:
+            begin
+              SetLength(keyValue,0);
+              if PScanMethod(params)^.Method.Data = nil then
+                TRedisScanKvCmdReturnG(PScanMethod(params)^.Method.Code)(keyValue,cursor, errMsg)
+              else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+              begin
+                TRedisScanKvCmdReturnA(PScanMethod(params)^.Method.Code)(keyValue,cursor, errMsg);
+                PScanMethod(params)^.Method.Code := nil;
+              end
+              else
+                TRedisScanKvCmdReturn(PScanMethod(params)^.Method)(redisClient, keyValue,cursor, errMsg);
+            end;
+          end;
+        end;
+      scanResultKeyValue:
+        begin
+          SetLength(keyValue, ValuesLen);
+          keySlice := results;
+          for i := 0 to ValuesLen - 1 do
+          begin
+            keyValue[i].Key := StrPas(keySlice^.Key);
+            keyValue[i].value.ValueLen := keySlice^.Value.ValueLen;
+            keyValue[i].value.Value := keySlice^.Value.Value;
+            Inc(keySlice);
+          end;
+          if PScanMethod(params)^.Method.Data = nil then
+            TRedisScanKVCmdReturnG(PScanMethod(params)^.Method.Code)(keyValue,cursor, errMsg)
+          else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+          begin
+            TRedisScanKVCmdReturnA(PScanMethod(params)^.Method.Code)(keyValue,cursor, errMsg);
+            PScanMethod(params)^.Method.Code := nil;
+          end
+          else
+            TRedisScanKVCmdReturn(PScanMethod(params)^.Method)(redisClient, keyValue,cursor, errMsg);
+        end;
+      scanResultKeyStr:
+        begin
+          errMsg := '';
+          SetLength(keyArray, 4);
+          l := 0;
+          p := results;
+          repeat
+            keyArray[l] := DecodeTokenW(p, #13#10, #0, False);
+            Inc(l);
+            if (l = Length(keyArray)) and (p^ <> #0) then
+              SetLength(keyArray, l + 4);
+          until p^ = #0;
+          SetLength(keyArray, l);
+          if PScanMethod(params)^.Method.Data = nil then
+            TRedisScanCmdReturnG(PScanMethod(params)^.Method.Code)(keyArray, cursor, errMsg)
+          else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+          begin
+            TRedisScanCmdReturnA(PScanMethod(params)^.Method.Code)(keyArray, cursor, errMsg);
+            PScanMethod(params)^.Method.Code := nil;
+          end
+          else
+            TRedisScanCmdReturn(PScanMethod(params)^.Method)(redisClient, keyArray, cursor, errMsg);
+        end;
+      scanResultValue:
+        begin
+          resultSlice := results;
+          if PScanMethod(params)^.ScanResultType = scanResultKeyStr then
+          begin
+            SetLength(keyArray, ValuesLen);
+            for i := 0 to ValuesLen - 1 do
+            begin
+              keyArray[i] := qstring.Utf8Decode(resultSlice^.Value,resultSlice^.ValueLen);
+              Inc(resultSlice);
+            end;
+            if PScanMethod(params)^.Method.Data = nil then
+              TRedisScanCmdReturnG(PScanMethod(params)^.Method.Code)(keyArray, cursor, errMsg)
+            else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanCmdReturnA(PScanMethod(params)^.Method.Code)(keyArray, cursor, errMsg);
+              PScanMethod(params)^.Method.Code := nil;
+            end
+            else
+              TRedisScanCmdReturn(PScanMethod(params)^.Method)(redisClient, keyArray, cursor, errMsg);
+          end
+          else if PScanMethod(params)^.ScanResultType = scanResultValue then
+          begin
+            SetLength(value, ValuesLen);
+            for i := 0 to ValuesLen - 1 do
+            begin
+              value[i].ValueLen := resultSlice^.ValueLen;
+              value[i].Value := resultSlice^.Value;
+              Inc(resultSlice);
+            end;
+            if PScanMethod(params)^.Method.Data = nil then
+              TRedisScanValueCmdReturnG(PScanMethod(params)^.Method.Code)(value,cursor, errMsg)
+            else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanValueCmdReturnA(PScanMethod(params)^.Method.Code)(value,cursor, errMsg);
+              PScanMethod(params)^.Method.Code := nil;
+            end
+            else
+              TRedisScanValueCmdReturn(PScanMethod(params)^.Method)(redisClient, value,cursor, errMsg);
+          end;
+        end;
       end;
-      if PMethod(params)^.Data = nil then
-        TRedisScanCmdReturnG(PMethod(params)^.Code)(keyArray, cursor, errMsg)
-      else if PMethod(params)^.Data = Pointer(-1) then
-      begin
-        TRedisScanCmdReturnA(PMethod(params)^.Code)(keyArray, cursor, errMsg);
-        TRedisScanCmdReturnA(PMethod(params)^.Code) := nil;
-      end
-      else
-        TRedisScanCmdReturn(PMethod(params)^)(redisClient, keyArray, cursor, errMsg);
     end;
     Dispose(params);
   end;
@@ -468,7 +632,7 @@ begin
       CmdResult^.values[i].ValueLen := resultSlice^.ValueLen;
       CmdResult^.values[i].Value := GetMemory(resultSlice^.ValueLen);
       Move(resultSlice^.Value^,CmdResult^.values[i].Value^,resultSlice^.ValueLen);
-      Inc(resultSlice,sizeof(TValueInterface));
+      Inc(resultSlice);
     end;
     TDxRedisSdkManagerEx(rclient.RedisSdkManager).PostRedisMsg(MC_StringSliceCmd, CmdResult);
   end

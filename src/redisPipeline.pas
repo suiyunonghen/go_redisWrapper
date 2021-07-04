@@ -155,23 +155,23 @@ type
     procedure ScanType(cursor: UInt64; match, KeyType: string; count: Int64;
       scanCmdReturn: TRedisScanCmdReturnG); overload;
     procedure SScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturn); overload;
+      scanCmdReturn: TRedisScanValueCmdReturn); overload;
     procedure SScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturnA); overload;
+      scanCmdReturn: TRedisScanValueCmdReturnA); overload;
     procedure SScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturnG); overload;
+      scanCmdReturn: TRedisScanValueCmdReturnG); overload;
     procedure HScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturn); overload;
+      scanCmdReturn: TRedisScanKVCmdReturn); overload;
     procedure HScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturnA); overload;
+      scanCmdReturn: TRedisScanKVCmdReturnA); overload;
     procedure HScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturnG); overload;
+      scanCmdReturn: TRedisScanKVCmdReturnG); overload;
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturn); overload;
+      scanCmdReturn: TRedisScanValueCmdReturn); overload;
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturnA); overload;
+      scanCmdReturn: TRedisScanValueCmdReturnA); overload;
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      scanCmdReturn: TRedisScanCmdReturnG); overload;
+      scanCmdReturn: TRedisScanValueCmdReturnG); overload;
     procedure get(Key: string; stringCmdReturn: TRedisStringCmdReturn);
       overload;
     procedure get(Key: string;
@@ -1371,39 +1371,42 @@ begin
 end;
 
 procedure TDxPipeClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturn);
+  scanCmdReturn: TRedisScanValueCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.Method := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultValue;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FZScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturnA);
+  scanCmdReturn: TRedisScanValueCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  PRedisScanValueCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.Method := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultValue;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FZScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturnG);
+  scanCmdReturn: TRedisScanValueCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultValue;
+  TRedisScanValueCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FZScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
@@ -2313,27 +2316,29 @@ begin
 end;
 
 procedure TDxPipeClient.HScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturn);
+  scanCmdReturn: TRedisScanKVCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.Method := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultKeyValue;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.HScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturnA);
+  scanCmdReturn: TRedisScanKVCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  PRedisScanKVCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultKeyValue;
+  Mnd^.Method := TMethod(ATemp);
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
@@ -2380,13 +2385,14 @@ begin
 end;
 
 procedure TDxPipeClient.HScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturnG);
+  scanCmdReturn: TRedisScanKVCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultKeyValue;
+  TRedisScanKVCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
@@ -3114,10 +3120,11 @@ end;
 procedure TDxPipeClient.Scan(cursor: UInt64; match: string; count: Int64;
   scanCmdReturn: TRedisScanCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultKeyStr;
+  Mnd^.Method := TMethod(scanCmdReturn);
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FScan(PipeClient, cursor,
     PChar(match), count, False, scanCmdResult, Mnd);
 end;
@@ -3126,13 +3133,14 @@ procedure TDxPipeClient.Scan(cursor: UInt64; match: string; count: Int64;
   scanCmdReturn: TRedisScanCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
   PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.Method := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultKeyStr;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FScan(PipeClient, cursor,
     PChar(match), count, False, scanCmdResult, Mnd);
 end;
@@ -3140,11 +3148,12 @@ end;
 procedure TDxPipeClient.Scan(cursor: UInt64; match: string; count: Int64;
   scanCmdReturn: TRedisScanCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultKeyStr;
+  TRedisScanCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FScan(PipeClient, cursor,
     PChar(match), count, False, scanCmdResult, Mnd);
 end;
@@ -3152,10 +3161,11 @@ end;
 procedure TDxPipeClient.ScanType(cursor: UInt64; match, KeyType: string;
   count: Int64; scanCmdReturn: TRedisScanCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.Method := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultKeyStr;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FScanType(PipeClient, cursor,
     PChar(match), PChar(KeyType), count, False, scanCmdResult, Mnd);
 end;
@@ -3164,13 +3174,14 @@ procedure TDxPipeClient.ScanType(cursor: UInt64; match, KeyType: string;
   count: Int64; scanCmdReturn: TRedisScanCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
   PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.Method := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultKeyStr;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FScanType(PipeClient, cursor,
     PChar(match), PChar(KeyType), count, False, scanCmdResult, Mnd);
 end;
@@ -3178,11 +3189,12 @@ end;
 procedure TDxPipeClient.ScanType(cursor: UInt64; match, KeyType: string;
   count: Int64; scanCmdReturn: TRedisScanCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultKeyStr;
+  TRedisScanCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FScanType(PipeClient, cursor,
     PChar(match), PChar(KeyType), count, False, scanCmdResult, Mnd);
 end;
@@ -3627,39 +3639,42 @@ begin
 end;
 
 procedure TDxPipeClient.SScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturn);
+  scanCmdReturn: TRedisScanValueCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.Method := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultValue;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FSScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.SScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturnA);
+  scanCmdReturn: TRedisScanValueCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  PRedisScanValueCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.Method := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultValue;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FSScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.SScan(cursor: UInt64; Key, match: string; count: Int64;
-  scanCmdReturn: TRedisScanCmdReturnG);
+  scanCmdReturn: TRedisScanValueCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultValue;
+  TRedisScanValueCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FSScan(PipeClient, cursor,
     PChar(Key), PChar(match), count, False, scanCmdResult, Mnd);
 end;

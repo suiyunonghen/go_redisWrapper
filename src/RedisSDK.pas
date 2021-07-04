@@ -22,8 +22,8 @@ type
   // 如果resultLen>0就是PByte
   TStringCmdCallback = procedure(redisClient, params: Pointer;
     CmdResult: Pointer; resultLen: Integer; IsErrResult: Boolean); stdcall;
-  TScanCmdCallback = procedure(redisClient, params: Pointer; keys: PChar;
-    cursor: Int64; IsErrResult: Boolean); stdcall;
+  TScanCmdCallback = procedure(redisClient, params: Pointer; keyValues: Pointer;ValuesLen: Integer;
+    cursor: Int64; kvType: Byte); stdcall;
   TIntCmdCallBack = procedure(redisClient, params: Pointer; intResult: Int64;
     errMsg: PChar); stdcall;
   //字符串数组指令返回的回调函数
@@ -122,8 +122,12 @@ type
     Key: PChar;
     Value: TValueInterface;
   end;
-
   PRedisKeyValue = ^TRedisKeyValue;
+
+  TKeyValueEx = record
+    Key: string;
+    value: TValueInterface;
+  end;
 
   TBitCount = record
     Start, EndB: Int64;
@@ -145,6 +149,22 @@ type
     cursor: UInt64; errMsg: string);
   PRedisScanCmdReturnA = ^TRedisScanCmdReturnA;
   TRedisScanCmdReturnG = procedure(keys: array of string; cursor: UInt64;
+    errMsg: string);
+
+  TRedisScanValueCmdReturn = procedure(Sender: Tobject; Values: array of TValueInterface;
+    cursor: UInt64; errMsg: string) of object;
+  TRedisScanValueCmdReturnA = reference to procedure(Values: array of TValueInterface;
+    cursor: UInt64; errMsg: string);
+  PRedisScanValueCmdReturnA = ^TRedisScanValueCmdReturnA;
+  TRedisScanValueCmdReturnG = procedure(Values: array of TValueInterface; cursor: UInt64;
+    errMsg: string);
+
+  TRedisScanKVCmdReturn = procedure(Sender: Tobject; Values: array of TKeyValueEx;
+    cursor: UInt64; errMsg: string) of object;
+  TRedisScanKVCmdReturnA = reference to procedure(Values: array of TKeyValueEx;
+    cursor: UInt64; errMsg: string);
+  PRedisScanKVCmdReturnA = ^TRedisScanKVCmdReturnA;
+  TRedisScanKVCmdReturnG = procedure(Values: array of TKeyValueEx; cursor: UInt64;
     errMsg: string);
 
   TRedisSelectScanCmdReturn = procedure(Sender: Tobject; DBIndex: Integer;
@@ -446,23 +466,25 @@ type
       scanCmdReturn: TRedisSelectScanCmdReturnG); overload;
 
     procedure SScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturn); overload;
+      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturn); overload;
     procedure SScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturnA); overload;
+      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnA); overload;
     procedure SScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturnG); overload;
+      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnG); overload;
+
     procedure HScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturn); overload;
+      block: Boolean; scanCmdReturn: TRedisScanKVCmdReturn); overload;
     procedure HScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturnA); overload;
+      block: Boolean; scanCmdReturn: TRedisScanKVCmdReturnA); overload;
     procedure HScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturnG); overload;
+      block: Boolean; scanCmdReturn: TRedisScanKVCmdReturnG); overload;
+
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturn); overload;
+      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturn); overload;
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturnA); overload;
+      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnA); overload;
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanCmdReturnG); overload;
+      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnG); overload;
 {$ENDREGION}
 {$REGION 'stringCmd'}
     procedure get(Key: string; block: Boolean;
@@ -1686,8 +1708,8 @@ type
 implementation
 uses cmdCallBack;
 
-procedure selectAndScanCmdResult(redisClient, params: Pointer; keys: PChar;
-  cursor: Int64; IsErrResult: Boolean); stdcall;
+procedure selectAndScanCmdResult(redisClient, params: Pointer; results: Pointer;ValuesLen: Integer;
+  cursor: Int64; resultType: Byte); stdcall;
 var
   client: TDxRedisClient absolute redisClient;
   errMsg: string;
@@ -1700,9 +1722,31 @@ begin
   begin
     New(scanCmdResult);
     scanCmdResult^.client := redisClient;
-    scanCmdResult^.IsErrResult := IsErrResult;
+    case TScanResultType(resultType) of
+    scanResultErr: scanCmdResult^.ErrMsg := StrPas(PChar(results));
+    scanResultKeyValue:
+      begin
+      end;
+    scanResultKeyStr:
+      begin
+        SetLength(scanCmdResult^.keys, 4);
+        l := 0;
+        p := results;
+        repeat
+          scanCmdResult^.keys[l] := DecodeTokenW(p, #13#10, #0, False);
+          Inc(l);
+          if (l = Length(scanCmdResult^.keys)) and (p^ <> #0) then
+            SetLength(scanCmdResult^.keys, l + 4);
+        until p^ = #0;
+        SetLength(scanCmdResult^.keys, l);
+      end;
+    scanResultValue:
+      begin
+      end;
+    end;
+
+    scanCmdResult^.resultType := TScanResultType(resultType);
     scanCmdResult^.params := params;
-    scanCmdResult^.keys := StrPas(keys);
     scanCmdResult^.cursor := cursor;
     client.RedisSdkManager.PostRedisMsg(MC_SelectScan, scanCmdResult);
   end
@@ -1710,38 +1754,45 @@ begin
   begin
     if PSelectCmdMethod(params)^.Method.Code <> nil then
     begin
-      if IsErrResult then
-      begin
-        SetLength(keyArray, 0);
-        errMsg := StrPas(keys);
-      end
-      else
-      begin
-        errMsg := '';
-        SetLength(keyArray, 4);
-        l := 0;
-        p := keys;
-        repeat
-          keyArray[l] := DecodeTokenW(p, #13#10, #0, False);
-          Inc(l);
-          if (l = Length(keyArray)) and (p^ <> #0) then
-            SetLength(keyArray, l + 4);
-        until p^ = #0;
-        SetLength(keyArray, l);
+      case TScanResultType(resultType) of
+      scanResultErr:
+        begin
+          SetLength(keyArray, 0);
+          errMsg := StrPas(PChar(results));
+        end;
+      scanResultKeyValue:
+        begin
+        end;
+      scanResultKeyStr:
+        begin
+          errMsg := '';
+          SetLength(keyArray, 4);
+          l := 0;
+          p := PChar(results);
+          repeat
+            keyArray[l] := DecodeTokenW(p, #13#10, #0, False);
+            Inc(l);
+            if (l = Length(keyArray)) and (p^ <> #0) then
+              SetLength(keyArray, l + 4);
+          until p^ = #0;
+          SetLength(keyArray, l);
+        end;
       end;
-
-      if PSelectCmdMethod(params)^.Method.Data = nil then
-        TRedisSelectScanCmdReturnG(PSelectCmdMethod(params)^.Method.Code)
-          (PSelectCmdMethod(params)^.DBIndex, keyArray, cursor, errMsg)
-      else if PSelectCmdMethod(params)^.Method.Data = Pointer(-1) then
+      if TScanResultType(resultType) in [scanResultErr,scanResultKeyStr] then
       begin
-        TRedisSelectScanCmdReturnA(PSelectCmdMethod(params)^.Method.Code)
-          (PSelectCmdMethod(params)^.DBIndex, keyArray, cursor, errMsg);
-        PSelectCmdMethod(params)^.Method.Code := nil;
-      end
-      else
-        TRedisSelectScanCmdReturn(PSelectCmdMethod(params)^.Method)
-          (client, PSelectCmdMethod(params)^.DBIndex, keyArray, cursor, errMsg);
+        if PSelectCmdMethod(params)^.Method.Data = nil then
+          TRedisSelectScanCmdReturnG(PSelectCmdMethod(params)^.Method.Code)
+            (PSelectCmdMethod(params)^.DBIndex, keyArray, cursor, errMsg)
+        else if PSelectCmdMethod(params)^.Method.Data = Pointer(-1) then
+        begin
+          TRedisSelectScanCmdReturnA(PSelectCmdMethod(params)^.Method.Code)
+            (PSelectCmdMethod(params)^.DBIndex, keyArray, cursor, errMsg);
+          PSelectCmdMethod(params)^.Method.Code := nil;
+        end
+        else
+          TRedisSelectScanCmdReturn(PSelectCmdMethod(params)^.Method)
+            (client, PSelectCmdMethod(params)^.DBIndex, keyArray, cursor, errMsg);
+      end;
     end;
     Dispose(params);
   end;
@@ -1866,45 +1917,141 @@ end;
 procedure TDxRedisSdkManager.DoScanCmdMsg(scanResult: Pointer);
 var
   sResult: PRedisScanResult;
-  errMsg: string;
-  keyArray: array of string;
-  l: Integer;
+  i,l: Integer;
   p: PChar;
+  mnd: PScanMethod;
+  keyArray: array of string;
 begin
   sResult := scanResult;
-  if PMethod(sResult^.params)^.Code <> nil then
+  mnd := sResult^.params;
+  if mnd^.Method.Code <> nil then
   begin
-    if sResult^.IsErrResult then
-    begin
-      SetLength(keyArray, 0);
-      errMsg := sResult^.keys;
-    end
-    else
-    begin
-      errMsg := '';
-      SetLength(keyArray, 4);
-      l := 0;
-      p := PChar(sResult^.keys);
-      repeat
-        keyArray[l] := DecodeTokenW(p, #13#10, #0, False);
-        Inc(l);
-        if (l = Length(keyArray)) and (p^ <> #0) then
-          SetLength(keyArray, l + 4);
-      until p^ = #0;
-      SetLength(keyArray, l);
+    case sResult^.resultType of
+    scanResultErr:
+      begin
+        case mnd^.ScanResultType of
+        scanResultKeyStr:
+          begin
+            if mnd^.Method.Data = nil then
+              TRedisScanCmdReturnG(mnd^.Method.Code)(sResult^.keys, sResult^.cursor, sResult^.ErrMsg)
+            else if mnd^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanCmdReturnA(mnd^.Method.Code)(sResult^.keys, sResult^.cursor, sResult^.ErrMsg);
+              mnd^.Method.Code := nil;
+            end
+            else
+              TRedisScanCmdReturn(mnd^.Method)(sResult^.client, sResult^.keys, sResult^.cursor, sResult^.ErrMsg);
+          end;
+        scanResultValue:
+          begin
+            if mnd^.Method.Data = nil then
+              TRedisScanValueCmdReturnG(mnd^.Method.Code)(sResult^.values, sResult^.cursor, sResult^.ErrMsg)
+            else if mnd^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanValueCmdReturnA(mnd^.Method.Code)(sResult^.values, sResult^.cursor, sResult^.ErrMsg);
+              mnd^.Method.Code := nil;
+            end
+            else
+              TRedisScanValueCmdReturn(mnd^.Method)(sResult^.client, sResult^.values, sResult^.cursor, sResult^.ErrMsg);
+          end;
+        scanResultKeyValue:
+          begin
+            if mnd^.Method.Data = nil then
+              TRedisScanKVCmdReturnG(mnd^.Method.Code)(sResult^.KeyValues, sResult^.cursor, sResult^.ErrMsg)
+            else if mnd^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanKVCmdReturnA(mnd^.Method.Code)(sResult^.KeyValues, sResult^.cursor, sResult^.ErrMsg);
+              mnd^.Method.Code := nil;
+            end
+            else
+              TRedisScanKVCmdReturn(mnd^.Method)(sResult^.client, sResult^.KeyValues, sResult^.cursor, sResult^.ErrMsg);
+          end;
+        end;
+      end;
+    scanResultValue:
+      begin
+        l := Length(sresult^.values);
+        case mnd^.ScanResultType of
+        scanResultKeyStr:
+          begin            
+            SetLength(keyArray, l);
+            for i := 0 to l - 1 do
+              keyArray[i] := qstring.Utf8Decode(sresult^.Values[i].Value,sresult^.Values[i].ValueLen);
+            if mnd^.Method.Data = nil then
+              TRedisScanCmdReturnG(mnd^.Method.Code)(keyArray, sresult^.cursor, '')
+            else if mnd^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanCmdReturnA(mnd^.Method.Code)(keyArray, sresult^.cursor, '');
+              mnd^.Method.Code := nil;
+            end
+            else
+              TRedisScanCmdReturn(mnd^.Method)(sresult^.client, keyArray, sresult^.cursor, '');
+          end;
+        scanResultValue:
+          begin
+            if mnd^.Method.Data = nil then
+              TRedisScanValueCmdReturnG(mnd^.Method.Code)(sResult^.values, sresult^.cursor, '')
+            else if mnd^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanValueCmdReturnA(mnd^.Method.Code)(sResult^.values, sresult^.cursor, '');
+              mnd^.Method.Code := nil;
+            end
+            else
+              TRedisScanValueCmdReturn(mnd^.Method)(sresult^.client, sResult^.values, sresult^.cursor, '');
+          end;
+        end;
+        for i := 0 to l - 1 do
+          FreeMemory(sresult^.Values[i].Value);
+      end;  
+    scanResultKeyStr:
+      begin
+        SetLength(keyArray, 4);
+        l := 0;
+        p := PChar(sResult^.keys);
+        repeat
+          keyArray[l] := DecodeTokenW(p, #13#10, #0, False);
+          Inc(l);
+          if (l = Length(keyArray)) and (p^ <> #0) then
+            SetLength(keyArray, l + 4);
+        until p^ = #0;
+        SetLength(keyArray, l);
+        case mnd^.ScanResultType of
+        scanResultValue:
+          begin
+          end;
+        scanResultKeyStr:
+          begin
+            if mnd^.Method.Data = nil then
+              TRedisScanCmdReturnG(mnd^.Method.Code)(keyArray, sresult^.cursor, '')
+            else if mnd^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanCmdReturnA(mnd^.Method.Code)(keyArray, sresult^.cursor, '');
+              mnd^.Method.Code := nil;
+            end
+            else
+              TRedisScanCmdReturn(mnd^.Method)(sresult^.client, keyArray, sresult^.cursor, '');
+          end;
+        end;
+      end;  
+    scanResultKeyValue:
+      begin
+        l := Length(sresult^.KeyValues);
+        if mnd^.ScanResultType = scanResultKeyValue then
+        begin
+          if mnd^.Method.Data = nil then
+            TRedisScanKVCmdReturnG(mnd^.Method.Code)(sResult^.KeyValues, sresult^.cursor, '')
+          else if mnd^.Method.Data = Pointer(-1) then
+          begin
+            TRedisScanKVCmdReturnA(mnd^.Method.Code)(sResult^.KeyValues, sresult^.cursor, '');
+            mnd^.Method.Code := nil;
+          end
+          else
+            TRedisScanKVCmdReturn(mnd^.Method)(sresult^.client, sResult^.KeyValues, sresult^.cursor, '');
+        end;
+        for i := 0 to l - 1 do
+          FreeMemory(sresult^.KeyValues[i].value.Value);
+      end;  
     end;
-    if PMethod(sResult^.params)^.Data = nil then
-      TRedisScanCmdReturnG(PMethod(sResult^.params)^.Code)
-        (keyArray, sResult^.cursor, errMsg)
-    else if PMethod(sResult^.params)^.Data = Pointer(-1) then
-    begin
-      TRedisScanCmdReturnA(PMethod(sResult^.params)^.Code)
-        (keyArray, sResult^.cursor, errMsg);
-      TRedisScanCmdReturnA(PMethod(sResult^.params)^.Code) := nil;
-    end
-    else
-      TRedisScanCmdReturn(PMethod(sResult^.params)^)(sResult^.client, keyArray,
-        sResult^.cursor, errMsg);
   end;
   Dispose(sResult^.params);
 end;
@@ -1912,48 +2059,25 @@ end;
 procedure TDxRedisSdkManager.DoSelectScanCmdMsg(scanResult: Pointer);
 var
   sResult: PRedisScanResult;
-  errMsg: string;
-  keyArray: array of string;
-  l: Integer;
-  p: PChar;
 begin
   sResult := scanResult;
   if PSelectCmdMethod(sResult^.params)^.Method.Code <> nil then
   begin
-    if sResult^.IsErrResult then
-    begin
-      SetLength(keyArray, 0);
-      errMsg := sResult^.keys;
-    end
-    else
-    begin
-      errMsg := '';
-      SetLength(keyArray, 4);
-      l := 0;
-      p := PChar(sResult^.keys);
-      repeat
-        keyArray[l] := DecodeTokenW(p, #13#10, #0, False);
-        Inc(l);
-        if (l = Length(keyArray)) and (p^ <> #0) then
-          SetLength(keyArray, l + 4);
-      until p^ = #0;
-      SetLength(keyArray, l);
-    end;
     if PSelectCmdMethod(sResult^.params)^.Method.Data = nil then
       TRedisSelectScanCmdReturnG(PSelectCmdMethod(sResult^.params)^.Method.Code)
-        (PSelectCmdMethod(sResult^.params)^.DBIndex, keyArray,
-        sResult^.cursor, errMsg)
+        (PSelectCmdMethod(sResult^.params)^.DBIndex, sResult^.keys,
+        sResult^.cursor, sResult^.errMsg)
     else if PSelectCmdMethod(sResult^.params)^.Method.Data = Pointer(-1) then
     begin
       TRedisSelectScanCmdReturnA(PSelectCmdMethod(sResult^.params)^.Method.Code)
-        (PSelectCmdMethod(sResult^.params)^.DBIndex, keyArray,
-        sResult^.cursor, errMsg);
+        (PSelectCmdMethod(sResult^.params)^.DBIndex, sResult^.keys,
+        sResult^.cursor, sResult^.errMsg);
       PSelectCmdMethod(sResult^.params)^.Method.Code := nil;
     end
     else
       TRedisSelectScanCmdReturn(PSelectCmdMethod(sResult^.params)^.Method)
-        (sResult^.client, PSelectCmdMethod(sResult^.params)^.DBIndex, keyArray,
-        sResult^.cursor, errMsg);
+        (sResult^.client, PSelectCmdMethod(sResult^.params)^.DBIndex, sResult^.keys,
+        sResult^.cursor, sResult^.errMsg); 
   end;
   Dispose(sResult^.params);
 end;
@@ -2653,42 +2777,45 @@ begin
 end;
 
 procedure TDxRedisClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturn);
+block: Boolean; scanCmdReturn: TRedisScanValueCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.Method := TMethod(scanCmdReturn);
   FRedisSdkManager.FZScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturnA);
+block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  PRedisScanValueCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.Method := TMethod(ATemp);
   FRedisSdkManager.FZScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturnG);
+block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.Method.Data := nil;
+  TRedisScanValueCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   FRedisSdkManager.FZScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
@@ -4529,29 +4656,31 @@ begin
 end;
 
 procedure TDxRedisClient.HScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturn);
+block: Boolean; scanCmdReturn: TRedisScanKVCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.Method := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultKeyValue;
   FRedisSdkManager.FHScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.HScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturnA);
+block: Boolean; scanCmdReturn: TRedisScanKVCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  PRedisScanKVCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultKeyValue;
+  Mnd^.Method := TMethod(ATemp);
   FRedisSdkManager.FHScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
@@ -4601,14 +4730,15 @@ begin
 end;
 
 procedure TDxRedisClient.HScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturnG);
+block: Boolean; scanCmdReturn: TRedisScanKVCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.ScanResultType := scanResultKeyValue;
+  Mnd^.Method.Data := nil;
+  TRedisScanKVCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   FRedisSdkManager.FHScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
@@ -5441,11 +5571,12 @@ end;
 procedure TDxRedisClient.Scan(cursor: UInt64; match: string; count: Int64;
 block: Boolean; scanCmdReturn: TRedisScanCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.Method := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultKeyStr;
   FRedisSdkManager.FScan(FRedisClient, cursor, PChar(match), count, block,
     scanCmdResult, Mnd);
 end;
@@ -5454,14 +5585,15 @@ procedure TDxRedisClient.Scan(cursor: UInt64; match: string; count: Int64;
 block: Boolean; scanCmdReturn: TRedisScanCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
   PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.Method := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultKeyStr;
   FRedisSdkManager.FScan(FRedisClient, cursor, PChar(match), count, block,
     scanCmdResult, Mnd);
 end;
@@ -5469,12 +5601,13 @@ end;
 procedure TDxRedisClient.Scan(cursor: UInt64; match: string; count: Int64;
 block: Boolean; scanCmdReturn: TRedisScanCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultKeyStr;
+  TRedisScanCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   FRedisSdkManager.FScan(FRedisClient, cursor, PChar(match), count, block,
     scanCmdResult, Mnd);
 end;
@@ -5482,11 +5615,11 @@ end;
 procedure TDxRedisClient.ScanType(cursor: UInt64; match, KeyType: string;
 count: Int64; block: Boolean; scanCmdReturn: TRedisScanCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.Method := TMethod(scanCmdReturn);
   FRedisSdkManager.FScanType(FRedisClient, cursor, PChar(match), PChar(KeyType),
     count, block, scanCmdResult, Mnd);
 end;
@@ -5495,14 +5628,15 @@ procedure TDxRedisClient.ScanType(cursor: UInt64; match, KeyType: string;
 count: Int64; block: Boolean; scanCmdReturn: TRedisScanCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
   PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.Method := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultKeyStr;
   FRedisSdkManager.FScanType(FRedisClient, cursor, PChar(match), PChar(KeyType),
     count, block, scanCmdResult, Mnd);
 end;
@@ -5510,12 +5644,13 @@ end;
 procedure TDxRedisClient.ScanType(cursor: UInt64; match, KeyType: string;
 count: Int64; block: Boolean; scanCmdReturn: TRedisScanCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.ScanResultType := scanResultKeyStr;
+  Mnd^.Method.Data := nil;
+  TRedisScanCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   FRedisSdkManager.FScanType(FRedisClient, cursor, PChar(match), PChar(KeyType),
     count, block, scanCmdResult, Mnd);
 end;
@@ -6095,42 +6230,45 @@ begin
 end;
 
 procedure TDxRedisClient.SScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturn);
+block: Boolean; scanCmdReturn: TRedisScanValueCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^ := TMethod(scanCmdReturn);
+  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.Method := TMethod(scanCmdReturn);
   FRedisSdkManager.FSScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.SScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturnA);
+block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  PRedisScanValueCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.Method := TMethod(ATemp);
   FRedisSdkManager.FSScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.SScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanCmdReturnG);
+block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := scanCmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultValue;
+  TRedisScanValueCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   FRedisSdkManager.FSScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
