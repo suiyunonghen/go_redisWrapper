@@ -129,6 +129,19 @@ type
     value: TValueInterface;
   end;
 
+  TRedisScoreValue = record
+    key: PChar;
+    score: Double;
+  end;
+  PRedisScoreValue = ^TRedisScoreValue;
+
+
+  TScoreValue = record
+    key: string;
+    score: Double;
+  end;
+  PScoreValue = ^TScoreValue;
+
   TBitCount = record
     Start, EndB: Int64;
   end;
@@ -165,6 +178,14 @@ type
     cursor: UInt64; errMsg: string);
   PRedisScanKVCmdReturnA = ^TRedisScanKVCmdReturnA;
   TRedisScanKVCmdReturnG = procedure(Values: array of TKeyValueEx; cursor: UInt64;
+    errMsg: string);
+
+  TRedisScanKScoreCmdReturn = procedure(Sender: Tobject; Values: array of TScoreValue;
+    cursor: UInt64; errMsg: string) of object;
+  TRedisScanKScoreCmdReturnA = reference to procedure(Values: array of TScoreValue;
+    cursor: UInt64; errMsg: string);
+  PRedisScanKScoreCmdReturnA = ^TRedisScanKScoreCmdReturnA;
+  TRedisScanKScoreCmdReturnG = procedure(Values: array of TScoreValue; cursor: UInt64;
     errMsg: string);
 
   TRedisSelectScanCmdReturn = procedure(Sender: Tobject; DBIndex: Integer;
@@ -303,11 +324,13 @@ type
     procedure SetRouteRandomly(const Value: Boolean);
   protected
     FRunningCount: Integer; // 正在执行的命令数量
+    //FPipeList: TList; //正在使用的Pipe
     procedure InitRedisClient;
     procedure CloseRedisClient;
     function NewPipeline(isTxPipe: Boolean;Data: Pointer): Pointer;
     procedure FreePipeline(pipeClient: Pointer);
   public
+    constructor Create;
     destructor Destroy; override;
 {$REGION 'StatusCmd'}
     procedure Ping(block: Boolean; StatusCmdReturn: TRedisStatusCmd); overload;
@@ -480,11 +503,11 @@ type
       block: Boolean; scanCmdReturn: TRedisScanKVCmdReturnG); overload;
 
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturn); overload;
+      block: Boolean; scanCmdReturn: TRedisScanKScoreCmdReturn); overload;
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnA); overload;
+      block: Boolean; scanCmdReturn: TRedisScanKScoreCmdReturnA); overload;
     procedure ZScan(cursor: UInt64; Key, match: string; count: Int64;
-      block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnG); overload;
+      block: Boolean; scanCmdReturn: TRedisScanKScoreCmdReturnG); overload;
 {$ENDREGION}
 {$REGION 'stringCmd'}
     procedure get(Key: string; block: Boolean;
@@ -1706,7 +1729,7 @@ type
   end;
 
 implementation
-uses cmdCallBack;
+uses cmdCallBack,redisPipeline;
 
 procedure selectAndScanCmdResult(redisClient, params: Pointer; results: Pointer;ValuesLen: Integer;
   cursor: Int64; resultType: Byte); stdcall;
@@ -1954,6 +1977,18 @@ begin
             else
               TRedisScanValueCmdReturn(mnd^.Method)(sResult^.client, sResult^.values, sResult^.cursor, sResult^.ErrMsg);
           end;
+        scanResultScoreValue:
+          begin
+            if mnd^.Method.Data = nil then
+              TRedisScanKScoreCmdReturnG(mnd^.Method.Code)(sResult^.ScoreValues, sResult^.cursor, sResult^.ErrMsg)
+            else if mnd^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanKScoreCmdReturnA(mnd^.Method.Code)(sResult^.ScoreValues, sResult^.cursor, sResult^.ErrMsg);
+              mnd^.Method.Code := nil;
+            end
+            else
+              TRedisScanKScoreCmdReturn(mnd^.Method)(sResult^.client, sResult^.ScoreValues, sResult^.cursor, sResult^.ErrMsg);
+          end;
         scanResultKeyValue:
           begin
             if mnd^.Method.Data = nil then
@@ -2032,7 +2067,23 @@ begin
               TRedisScanCmdReturn(mnd^.Method)(sresult^.client, keyArray, sresult^.cursor, '');
           end;
         end;
-      end;  
+      end;
+    scanResultScoreValue:
+      begin
+        l := Length(sresult^.ScoreValues);
+        if mnd^.ScanResultType = scanResultScoreValue then
+        begin
+          if mnd^.Method.Data = nil then
+            TRedisScanKScoreCmdReturnG(mnd^.Method.Code)(sResult^.ScoreValues, sResult^.cursor, '')
+          else if mnd^.Method.Data = Pointer(-1) then
+          begin
+            TRedisScanKScoreCmdReturnA(mnd^.Method.Code)(sResult^.ScoreValues, sResult^.cursor, '');
+            mnd^.Method.Code := nil;
+          end
+          else
+            TRedisScanKScoreCmdReturn(mnd^.Method)(sResult^.client, sResult^.ScoreValues, sResult^.cursor, '');
+        end;
+      end;
     scanResultKeyValue:
       begin
         l := Length(sresult^.KeyValues);
@@ -2777,20 +2828,20 @@ begin
 end;
 
 procedure TDxRedisClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanValueCmdReturn);
+block: Boolean; scanCmdReturn: TRedisScanKScoreCmdReturn);
 var
   Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.ScanResultType := scanResultScoreValue;
   Mnd^.Method := TMethod(scanCmdReturn);
   FRedisSdkManager.FZScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnA);
+block: Boolean; scanCmdReturn: TRedisScanKScoreCmdReturnA);
 var
   ATemp: TRedisStatusCmd;
   Mnd: PScanMethod;
@@ -2798,24 +2849,24 @@ begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanValueCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  PRedisScanKScoreCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
   New(Mnd);
-  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.ScanResultType := scanResultScoreValue;
   Mnd^.Method := TMethod(ATemp);
   FRedisSdkManager.FZScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.ZScan(cursor: UInt64; Key, match: string; count: Int64;
-block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnG);
+block: Boolean; scanCmdReturn: TRedisScanKScoreCmdReturnG);
 var
   Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.ScanResultType := scanResultValue;
+  Mnd^.ScanResultType := scanResultScoreValue;
   Mnd^.Method.Data := nil;
-  TRedisScanValueCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
+  TRedisScanKScoreCmdReturnA(Mnd^.Method.Code) := scanCmdReturn;
   FRedisSdkManager.FZScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
@@ -2920,7 +2971,7 @@ begin
       FRedisSdkManager.FClients.Remove(self);
     FRedisClient := nil;
     tk := GetTickCount;
-    while AtomicCmpExchange(FRunningCount, 0, 0) > 0 do
+    while (AtomicCmpExchange(FRunningCount, 0, 0) > 0) do
     begin
       Application.ProcessMessages;
       Sleep(0);
@@ -2928,6 +2979,11 @@ begin
         Break;
     end;
   end;
+end;
+
+constructor TDxRedisClient.Create;
+begin
+  inherited;
 end;
 
 procedure TDxRedisClient.Del(keys: array of string; block: Boolean;
@@ -3209,6 +3265,7 @@ end;
 destructor TDxRedisClient.Destroy;
 begin
   SetRedisSdkManager(nil);
+  //FPipeList.Free;
   inherited;
 end;
 
@@ -4211,8 +4268,17 @@ begin
 end;
 
 procedure TDxRedisClient.FreePipeline(pipeClient: Pointer);
+var
+  idx: Integer;
 begin
-  FRedisSdkManager.FFreePipeLiner(pipeClient);
+  //idx := FPipeList.IndexOf(pipeClient);
+  if TDxPipeClient(pipeClient).PipeData <> nil then
+  begin
+    FRedisSdkManager.FFreePipeLiner(TDxPipeClient(pipeClient).PipeData);
+    AtomicDecrement(FRunningCount, 1);
+  end;
+  {if idx <> -1 then
+    FPipeList.Delete(idx);}
 end;
 
 procedure TDxRedisClient.get(Key: string; block: Boolean;
@@ -5251,6 +5317,10 @@ end;
 function TDxRedisClient.NewPipeline(isTxPipe: Boolean;Data: Pointer): Pointer;
 begin
   Result := FRedisSdkManager.FNewPipeLiner(FRedisClient,Data,isTxPipe);
+  if Result <> nil then
+    AtomicIncrement(FRunningCount, 1);
+  {if (Result <>  nil) and (FPipeList.IndexOf(Data) = -1) then
+    FPipeList.Add(Data);}
 end;
 
 procedure TDxRedisClient.ObjectRefCount(Key: string; block: Boolean;

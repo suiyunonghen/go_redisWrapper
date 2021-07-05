@@ -23,7 +23,8 @@ type
     scanResultErr,
     scanResultKeyStr,	                  //返回Key字符串列表\r\n区分
     scanResultKeyValue,					  //2表示keyValue 数组
-    scanResultValue						  // valueInterface数组
+    scanResultValue,						  // valueInterface数组
+    scanResultScoreValue          // TScoreValue 数组
   );
 
   TRedisScanResult = record
@@ -35,6 +36,7 @@ type
     ErrMsg: string;
     values: array of TValueInterface;
     KeyValues: array of TKeyValueEx;
+    ScoreValues: array of TScoreValue;
   end;
 
   PRedisScanResult = ^TRedisScanResult;
@@ -390,11 +392,13 @@ var
   keyArray: array of string;
   value: array of TValueInterface;
   keyValue: array of TKeyValueEx;
+  scoreValue: array of TScoreValue;
   i,l: Integer;
   p: PChar;
   scanCmdResult: PRedisScanResult;
   resultSlice: PValueInterface;
   keySlice: PRedisKeyValue;
+  scoreSlice: PRedisScoreValue;
 begin
   if TObject(redisClient).InheritsFrom(TDxRedisClient) then
   begin
@@ -439,6 +443,17 @@ begin
             SetLength(scanCmdResult^.keys, l + 4);
         until p^ = #0;
         SetLength(scanCmdResult^.keys, l);
+      end;
+    scanResultScoreValue:
+      begin
+        scoreSlice := results;
+        SetLength(scanCmdResult^.ScoreValues, ValuesLen);
+        for i := 0 to ValuesLen - 1 do
+        begin
+          scanCmdResult^.ScoreValues[i].key := StrPas(scoreSlice^.key);
+          scanCmdResult^.ScoreValues[i].score := scoreSlice^.score;
+          Inc(scoreSlice);
+        end;
       end;
     scanResultValue:
       begin
@@ -490,6 +505,19 @@ begin
               end
               else
                 TRedisScanValueCmdReturn(PScanMethod(params)^.Method)(redisClient, value,cursor, errMsg);
+            end;
+          scanResultScoreValue:
+            begin
+              SetLength(scoreValue,0);
+              if PScanMethod(params)^.Method.Data = nil then
+                TRedisScanKScoreCmdReturnG(PScanMethod(params)^.Method.Code)(scoreValue,cursor, errMsg)
+              else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+              begin
+                TRedisScanKScoreCmdReturnA(PScanMethod(params)^.Method.Code)(scoreValue,cursor, errMsg);
+                PScanMethod(params)^.Method.Code := nil;
+              end
+              else
+                TRedisScanKScoreCmdReturn(PScanMethod(params)^.Method)(redisClient, scoreValue,cursor, errMsg);
             end;
           scanResultKeyValue:
             begin
@@ -549,6 +577,29 @@ begin
           end
           else
             TRedisScanCmdReturn(PScanMethod(params)^.Method)(redisClient, keyArray, cursor, errMsg);
+        end;
+      scanResultScoreValue:
+        begin
+          scoreSlice := results;
+          if PScanMethod(params)^.ScanResultType = scanResultScoreValue then
+          begin
+            SetLength(scoreValue, ValuesLen);
+            for i := 0 to ValuesLen - 1 do
+            begin
+              scoreValue[i].key := StrPas(scoreSlice^.key);
+              scoreValue[i].score := scoreSlice^.score;
+              Inc(scoreSlice);
+            end;
+            if PScanMethod(params)^.Method.Data = nil then
+              TRedisScanKScoreCmdReturnG(PScanMethod(params)^.Method.Code)(scoreValue,cursor, errMsg)
+            else if PScanMethod(params)^.Method.Data = Pointer(-1) then
+            begin
+              TRedisScanKScoreCmdReturnA(PScanMethod(params)^.Method.Code)(scoreValue,cursor, errMsg);
+              PScanMethod(params)^.Method.Code := nil;
+            end
+            else
+              TRedisScanKScoreCmdReturn(PScanMethod(params)^.Method)(redisClient, scoreValue,cursor, errMsg);
+          end;
         end;
       scanResultValue:
         begin
