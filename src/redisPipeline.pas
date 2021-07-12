@@ -263,15 +263,29 @@ type
     procedure HSet(Key: string; keyValues: array of TRedisKeyValue; intCmdReturn: TIntCmdReturn); overload;
     procedure HSet(Key: string; keyValues: array of TRedisKeyValue; intCmdReturn: TIntCmdReturnA); overload;
     procedure HSet(Key: string; keyValues: array of TRedisKeyValue; intCmdReturn: TIntCmdReturnG); overload;
+
     procedure LInsert(Key: string; before: Boolean; pivot, Value: string; intCmdReturn: TIntCmdReturn); overload;
     procedure LInsert(Key: string; before: Boolean; pivot, Value: string; intCmdReturn: TIntCmdReturnA); overload;
     procedure LInsert(Key: string; before: Boolean; pivot, Value: string; intCmdReturn: TIntCmdReturnG); overload;
+    procedure LInsert(Key: string; before: Boolean; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturn); overload;
+    procedure LInsert(Key: string; before: Boolean; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturnA); overload;
+    procedure LInsert(Key: string; before: Boolean; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturnG); overload;
     procedure LInsertBefore(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturn); overload;
     procedure LInsertBefore(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnA); overload;
     procedure LInsertBefore(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnG); overload;
+    procedure LInsertBefore(Key: string; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturn); overload;
+    procedure LInsertBefore(Key: string; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturnA); overload;
+    procedure LInsertBefore(Key: string; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturnG); overload;
+
     procedure LInsertAfter(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturn); overload;
     procedure LInsertAfter(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnA); overload;
     procedure LInsertAfter(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnG); overload;
+
+    procedure LInsertAfter(Key: string; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturn); overload;
+    procedure LInsertAfter(Key: string; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturnA); overload;
+    procedure LInsertAfter(Key: string; pivot, Value: TValueInterface; intCmdReturn: TIntCmdReturnG); overload;
+
+
     procedure LLen(Key: string; intCmdReturn: TIntCmdReturn); overload;
     procedure LLen(Key: string; intCmdReturn: TIntCmdReturnA); overload;
     procedure LLen(Key: string; intCmdReturn: TIntCmdReturnG); overload;
@@ -2997,97 +3011,146 @@ end;
 procedure TDxPipeClient.LInsert(Key: string; before: Boolean; pivot, Value: string; intCmdReturn: TIntCmdReturn);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   New(Mnd);
   Mnd^ := TMethod(intCmdReturn);
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, @pivotv, @V, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsert(Key: string; before: Boolean; pivot, Value: string; intCmdReturn: TIntCmdReturnA);
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
+  pivotv,v: TValueInterface;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
   PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
   New(Mnd);
   Mnd^ := TMethod(ATemp);
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsert(Key: string; before: Boolean; pivot, Value: string; intCmdReturn: TIntCmdReturnG);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   New(Mnd);
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsertBefore(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturn);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   New(Mnd);
   Mnd^ := TMethod(intCmdReturn);
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsertBefore(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnA);
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
+  pivotv,v: TValueInterface;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
   PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
   New(Mnd);
   Mnd^ := TMethod(ATemp);
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsertBefore(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnG);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   New(Mnd);
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsertAfter(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturn);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   New(Mnd);
   Mnd^ := TMethod(intCmdReturn);
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsertAfter(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnA);
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
+  pivotv,v: TValueInterface;
 begin
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
   PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
   New(Mnd);
   Mnd^ := TMethod(ATemp);
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LInsertAfter(Key: string; pivot, Value: string; intCmdReturn: TIntCmdReturnG);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   New(Mnd);
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
-  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), PChar(pivot), PChar(Value), False, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), @pivotv,@v, False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.LLen(Key: string; intCmdReturn: TIntCmdReturn);
@@ -7929,6 +7992,111 @@ begin
   Mnd^.Data := nil;
   TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FZDiff(PipeClient, PChar(KeyStr), False, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsert(Key: string; before: Boolean; pivot,
+  Value: TValueInterface; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, @pivot, @Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsert(Key: string; before: Boolean; pivot,
+  Value: TValueInterface; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsert(Key: string; before: Boolean; pivot,
+  Value: TValueInterface; intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsert(PipeClient, PChar(Key), before, @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsertBefore(Key: string; pivot,
+  Value: TValueInterface; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsertBefore(Key: string; pivot,
+  Value: TValueInterface; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsertBefore(Key: string; pivot,
+  Value: TValueInterface; intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertBefore(PipeClient, PChar(Key), @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsertAfter(Key: string; pivot, Value: TValueInterface;
+  intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsertAfter(Key: string; pivot, Value: TValueInterface;
+  intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.LInsertAfter(Key: string; pivot, Value: TValueInterface;
+  intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), @pivot,@Value, False, intCmdResult, Mnd);
 end;
 
 end.

@@ -883,6 +883,12 @@ type
       block: Boolean; intCmdReturn: TIntCmdReturnA); overload;
     procedure LInsert(Key: string; before: Boolean; pivot, Value: string;
       block: Boolean; intCmdReturn: TIntCmdReturnG); overload;
+    procedure LInsert(Key: string; before: Boolean; pivot, Value: TValueInterface;
+      block: Boolean; intCmdReturn: TIntCmdReturn); overload;
+    procedure LInsert(Key: string; before: Boolean; pivot, Value: TValueInterface;
+      block: Boolean; intCmdReturn: TIntCmdReturnA); overload;
+    procedure LInsert(Key: string; before: Boolean; pivot, Value: TValueInterface;
+      block: Boolean; intCmdReturn: TIntCmdReturnG); overload;
 
     procedure LInsertBefore(Key: string; pivot, Value: string; block: Boolean;
       intCmdReturn: TIntCmdReturn); overload;
@@ -890,12 +896,25 @@ type
       intCmdReturn: TIntCmdReturnA); overload;
     procedure LInsertBefore(Key: string; pivot, Value: string; block: Boolean;
       intCmdReturn: TIntCmdReturnG); overload;
+    procedure LInsertBefore(Key: string; pivot, Value: TValueInterface; block: Boolean;
+      intCmdReturn: TIntCmdReturn); overload;
+    procedure LInsertBefore(Key: string; pivot, Value: TValueInterface; block: Boolean;
+      intCmdReturn: TIntCmdReturnA); overload;
+    procedure LInsertBefore(Key: string; pivot, Value: TValueInterface; block: Boolean;
+      intCmdReturn: TIntCmdReturnG); overload;
+
 
     procedure LInsertAfter(Key: string; pivot, Value: string; block: Boolean;
       intCmdReturn: TIntCmdReturn); overload;
     procedure LInsertAfter(Key: string; pivot, Value: string; block: Boolean;
       intCmdReturn: TIntCmdReturnA); overload;
     procedure LInsertAfter(Key: string; pivot, Value: string; block: Boolean;
+      intCmdReturn: TIntCmdReturnG); overload;
+    procedure LInsertAfter(Key: string; pivot, Value: TValueInterface; block: Boolean;
+      intCmdReturn: TIntCmdReturn); overload;
+    procedure LInsertAfter(Key: string; pivot, Value: TValueInterface; block: Boolean;
+      intCmdReturn: TIntCmdReturnA); overload;
+    procedure LInsertAfter(Key: string; pivot, Value: TValueInterface; block: Boolean;
       intCmdReturn: TIntCmdReturnG); overload;
 
     procedure LLen(Key: string; block: Boolean;
@@ -1542,13 +1561,13 @@ type
       keyValueArr: PRedisKeyValue; arrLen: Integer; block: Boolean;
       resultCallBack: TIntCmdCallBack; params: Pointer); stdcall;
     FLInsert: procedure(redisClient: Pointer; Key: PChar; before: Boolean;
-      pivot, Value: PChar; block: Boolean; resultCallBack: TIntCmdCallBack;
+      pivot, Value: PValueInterface; block: Boolean; resultCallBack: TIntCmdCallBack;
       params: Pointer); stdcall;
     FLInsertBefore: procedure(redisClient: Pointer; Key: PChar;
-      pivot, Value: PChar; block: Boolean; resultCallBack: TIntCmdCallBack;
+      pivot, Value: PValueInterface; block: Boolean; resultCallBack: TIntCmdCallBack;
       params: Pointer); stdcall;
     FLInsertAfter: procedure(redisClient: Pointer; Key: PChar;
-      pivot, Value: PChar; block: Boolean; resultCallBack: TIntCmdCallBack;
+      pivot, Value: PValueInterface; block: Boolean; resultCallBack: TIntCmdCallBack;
       params: Pointer); stdcall;
     FLLen: procedure(redisClient: Pointer; Key: PChar; block: Boolean;
       resultCallBack: TIntCmdCallBack; params: Pointer); stdcall;
@@ -4268,8 +4287,8 @@ begin
 end;
 
 procedure TDxRedisClient.FreePipeline(pipeClient: Pointer);
-var
-  idx: Integer;
+{var
+  idx: Integer;}
 begin
   //idx := FPipeList.IndexOf(pipeClient);
   if TDxPipeClient(pipeClient).PipeData <> nil then
@@ -6477,12 +6496,16 @@ procedure TDxRedisClient.LInsert(Key: string; before: Boolean;
 pivot, Value: string; block: Boolean; intCmdReturn: TIntCmdReturn);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
   Mnd^ := TMethod(intCmdReturn);
-  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, @pivotv,@v, block, intCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.LInsert(Key: string; before: Boolean;
@@ -6490,6 +6513,7 @@ pivot, Value: string; block: Boolean; intCmdReturn: TIntCmdReturnA);
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
+  pivotv,v: TValueInterface;
 begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
@@ -6497,37 +6521,132 @@ begin
   PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
   New(Mnd);
   Mnd^ := TMethod(ATemp);
-  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, @pivotv,@v, block, intCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.LInsert(Key: string; before: Boolean;
 pivot, Value: string; block: Boolean; intCmdReturn: TIntCmdReturnG);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
-  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, @pivotv,@v, block, intCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.LInsertBefore(Key: string; pivot, Value: string;
 block: Boolean; intCmdReturn: TIntCmdReturn);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
   Mnd^ := TMethod(intCmdReturn);
-  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), @pivotv,@V, block, intCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.LInsertBefore(Key: string; pivot, Value: string;
 block: Boolean; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  pivotv,v: TValueInterface;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), @pivotv,@v, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertBefore(Key: string; pivot, Value: string;
+block: Boolean; intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+  pivotv,v: TValueInterface;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), @pivotv,@v, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertAfter(Key: string; pivot, Value: string;
+block: Boolean; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+  pivotv,v: TValueInterface;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key), @pivotv,@v, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertAfter(Key: string; pivot, Value: string;
+block: Boolean; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  pivotv,v: TValueInterface;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key), @pivotv,@v, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsert(Key: string; before: Boolean; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, @pivot,@Value, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsert(Key: string; before: Boolean; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturnA);
 var
   Mnd: PMethod;
   ATemp: TIntCmdReturn;
@@ -6538,12 +6657,11 @@ begin
   PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
   New(Mnd);
   Mnd^ := TMethod(ATemp);
-  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
+  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, @pivot,@Value, block, intCmdResult, Mnd);
 end;
 
-procedure TDxRedisClient.LInsertBefore(Key: string; pivot, Value: string;
-block: Boolean; intCmdReturn: TIntCmdReturnG);
+procedure TDxRedisClient.LInsert(Key: string; before: Boolean; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturnG);
 var
   Mnd: PMethod;
 begin
@@ -6551,49 +6669,24 @@ begin
   New(Mnd);
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
-  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
-end;
-
-procedure TDxRedisClient.LInsertAfter(Key: string; pivot, Value: string;
-block: Boolean; intCmdReturn: TIntCmdReturn);
-var
-  Mnd: PMethod;
-begin
-  AtomicIncrement(FRunningCount, 1);
-  New(Mnd);
-  Mnd^ := TMethod(intCmdReturn);
-  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key), PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
-end;
-
-procedure TDxRedisClient.LInsertAfter(Key: string; pivot, Value: string;
-block: Boolean; intCmdReturn: TIntCmdReturnA);
-var
-  Mnd: PMethod;
-  ATemp: TIntCmdReturn;
-begin
-  AtomicIncrement(FRunningCount, 1);
-  TMethod(ATemp).Data := Pointer(-1);
-  TMethod(ATemp).Code := nil;
-  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
-  New(Mnd);
-  Mnd^ := TMethod(ATemp);
-  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key), PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
+  FRedisSdkManager.FLInsert(FRedisClient, PChar(Key), before, @pivot,@Value, block, intCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.LInsertAfter(Key: string; pivot, Value: string;
 block: Boolean; intCmdReturn: TIntCmdReturnG);
 var
   Mnd: PMethod;
+  pivotv,v: TValueInterface;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
-  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key), PChar(pivot),
-    PChar(Value), block, intCmdResult, Mnd);
+  pivotv.ValueLen := 0;
+  pivotv.Value := PChar(pivot);
+  v.ValueLen := 0;
+  v.Value := PChar(Value);
+  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key),@pivotv,@v, block, intCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.LLen(Key: string; block: Boolean;
@@ -11149,6 +11242,82 @@ begin
   Mnd^.Data := nil;
   TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
   FRedisSdkManager.FZDiff(FRedisClient,PChar(KeyStr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertBefore(Key: string; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), @pivot,@Value, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertBefore(Key: string; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), @pivot,@Value, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertBefore(Key: string; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  FRedisSdkManager.FLInsertBefore(FRedisClient, PChar(Key), @pivot,@Value, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertAfter(Key: string; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key), @pivot,@Value, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertAfter(Key: string; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key), @pivot,@Value, block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.LInsertAfter(Key: string; pivot,
+  Value: TValueInterface; block: Boolean; intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  FRedisSdkManager.FLInsertAfter(FRedisClient, PChar(Key),@pivot,@Value, block, intCmdResult, Mnd);
 end;
 
 end.
