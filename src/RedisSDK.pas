@@ -797,6 +797,13 @@ type
     procedure IncrByFloat(Key: string; increment: Double; block: Boolean;
       floatCmdReturn: TfloatCmdReturnG); overload;
 
+    procedure HIncrByFloat(Key,field: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturn); overload;
+    procedure HIncrByFloat(Key,field: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturnA); overload;
+    procedure HIncrByFloat(Key,field: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturnG); overload;
+
     procedure StrLen(Key: string; block: Boolean;
       intCmdReturn: TIntCmdReturn); overload;
     procedure StrLen(Key: string; block: Boolean;
@@ -1555,6 +1562,8 @@ type
     FIncr: procedure(redisClient: Pointer; Key: PChar; block: Boolean;
       resultCallBack: TIntCmdCallBack; params: Pointer); stdcall;
     FIncrByFloat: procedure(redisClient: Pointer; Key: PChar;increment: double; block: Boolean;
+      resultCallBack: TfloatCmdCallBack; params: Pointer); stdcall;
+    FHIncrByFloat: procedure(redisClient: Pointer; Key,field: PChar;increment: double; block: Boolean;
       resultCallBack: TfloatCmdCallBack; params: Pointer); stdcall;
     FIncrBy: procedure(redisClient: Pointer; Key: PChar; increment: Int64;
       block: Boolean; resultCallBack: TIntCmdCallBack;
@@ -2390,6 +2399,7 @@ begin
     FIncr := GetProcAddress(FDllHandle, 'Incr');
     FIncrBy := GetProcAddress(FDllHandle, 'IncrBy');
     FIncrByFloat := GetProcAddress(FDllHandle, 'IncrByFloat');
+    FHIncrByFloat := GetProcAddress(FDllHandle, 'HIncrByFloat');
     FStrLen := GetProcAddress(FDllHandle, 'StrLen');
     FSetRange := GetProcAddress(FDllHandle, 'SetRange');
     FGetBit := GetProcAddress(FDllHandle, 'GetBit');
@@ -7692,6 +7702,47 @@ begin
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
   FRedisSdkManager.FHIncrBy(FRedisClient, PChar(Key), PChar(field), Incr, block,
     intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HIncrByFloat(Key, field: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(floatCmdReturn);
+  FRedisSdkManager.FHIncrByFloat(FRedisClient, PChar(Key),PChar(field), increment, block,
+    floatCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HIncrByFloat(Key, field: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TfloatCmdReturn;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PfloatCmdReturnA(@TMethod(ATemp).Code)^ := floatCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FHIncrByFloat(FRedisClient, PChar(Key),PChar(field), increment, block,
+    floatCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HIncrByFloat(Key, field: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TFloatCmdReturnA(Mnd^.Code) := floatCmdReturn;
+  FRedisSdkManager.FHIncrByFloat(FRedisClient, PChar(Key),PChar(field), increment, block,
+    floatCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.HLen(Key: string; block: Boolean;

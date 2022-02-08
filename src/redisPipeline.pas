@@ -223,12 +223,18 @@ type
     procedure IncrBy(Key: string; increment: Int64; intCmdReturn: TIntCmdReturn); overload;
     procedure IncrBy(Key: string; increment: Int64; intCmdReturn: TIntCmdReturnA); overload;
     procedure IncrBy(Key: string; increment: Int64; intCmdReturn: TIntCmdReturnG); overload;
-
     procedure IncrByFloat(Key: string; increment: Double; block: Boolean;
       floatCmdReturn: TfloatCmdReturn); overload;
     procedure IncrByFloat(Key: string; increment: Double; block: Boolean;
       floatCmdReturn: TfloatCmdReturnA); overload;
     procedure IncrByFloat(Key: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturnG); overload;
+
+    procedure HIncrByFloat(Key,field: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturn); overload;
+    procedure HIncrByFloat(Key,field: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturnA); overload;
+    procedure HIncrByFloat(Key,field: string; increment: Double; block: Boolean;
       floatCmdReturn: TfloatCmdReturnG); overload;
 
     procedure StrLen(Key: string; intCmdReturn: TIntCmdReturn); overload;
@@ -3965,6 +3971,41 @@ begin
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHIncrBy(PipeClient, PChar(Key), PChar(field), Incr, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.HIncrByFloat(Key, field: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^ := TMethod(floatCmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHIncrByFloat(PipeClient, PChar(Key),PChar(field), increment, False, floatCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.HIncrByFloat(Key, field: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TfloatCmdReturn;
+begin
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PfloatCmdReturnA(@TMethod(ATemp).Code)^ := floatCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHIncrByFloat(PipeClient, PChar(Key),PChar(field), increment, False, floatCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.HIncrByFloat(Key, field: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^.Data := nil;
+  TfloatCmdReturnA(Mnd^.Code) := floatCmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHIncrByFloat(PipeClient, PChar(Key),PChar(field), increment, False, floatCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.HLen(Key: string; intCmdReturn: TIntCmdReturn);
