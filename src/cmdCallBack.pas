@@ -76,8 +76,10 @@ type
   TRedisIntResult = record
     client: Pointer;
     params: Pointer;
-    CmdResult: Int64;
     errMsg: string;
+    case Boolean of
+    true: (CmdResult: Int64);
+    false: (floatResult: Double);
   end;
   PRedisIntResult = ^TRedisIntResult;
 
@@ -93,6 +95,7 @@ procedure LogProc(Data: Pointer; logLevel: Integer; logMsg: PChar); stdcall;
 procedure statusCmdResult(redisClient, params: Pointer; CmdResult: PChar;IsErrResult: Boolean); stdcall;
 procedure stringCmdResult(redisClient, params: Pointer; CmdResult: Pointer;resultLen: Integer; IsErrResult: Boolean); stdcall;
 procedure intCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
+procedure floatCmdResult(redisClient, params: Pointer; floatResult: double;errMsg: PChar); stdcall;
 procedure PipeExecReturn(pipeClient,params: Pointer;errMsg: PChar);stdcall;
 procedure scanCmdResult(redisClient, params: Pointer; results: Pointer;ValuesLen: Integer;cursor: Int64; resultType: Byte); stdcall;
 procedure boolCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
@@ -254,6 +257,51 @@ begin
       end;
     end;
     Dispose(strMethod);
+  end;
+  if pipeClient = nil then
+    AtomicDecrement(TDxRedisClientEx(rclient).FRunningCount, 1);
+end;
+
+procedure floatCmdResult(redisClient, params: Pointer; floatResult: double;errMsg: PChar); stdcall;
+var
+  intCmdResult: PRedisIntResult;
+  rClient: TDxRedisClient;
+  pipeClient: TDxPipeClient;
+begin
+  if TObject(redisClient).InheritsFrom(TDxRedisClient) then
+  begin
+    rClient := redisClient;
+    pipeClient := nil;
+  end
+  else
+  begin
+    pipeClient := redisClient;
+    rClient := pipeClient.Owner;
+  end;
+  if GetCurrentThreadId <> MainThreadID then
+  begin
+    New(intCmdResult);
+    intCmdResult^.client := redisClient;
+    intCmdResult^.floatResult := floatResult;
+    intCmdResult^.params := params;
+    intCmdResult^.errMsg := StrPas(errMsg);
+    TDxRedisSdkManagerEx(rClient.RedisSdkManager).PostRedisMsg(MC_FloatCmd, intCmdResult);
+  end
+  else
+  begin
+    if PMethod(params)^.Code <> nil then
+    begin
+      if PMethod(params)^.Data = nil then
+        TfloatCmdReturnG(PMethod(params)^.Code)(floatResult, StrPas(errMsg))
+      else if PMethod(params)^.Data = Pointer(-1) then
+      begin
+        TfloatCmdReturnA(PMethod(params)^.Code)(floatResult, StrPas(errMsg));
+        PMethod(params)^.Code := nil;
+      end
+      else
+        TfloatCmdReturn(PMethod(params)^)(redisClient, floatResult, StrPas(errMsg));
+    end;
+    Dispose(params);
   end;
   if pipeClient = nil then
     AtomicDecrement(TDxRedisClientEx(rclient).FRunningCount, 1);
@@ -433,9 +481,10 @@ begin
       end;
     scanResultKeyStr:
       begin
+        errMsg := qstring.Utf8Decode(results,ValuesLen);
         SetLength(scanCmdResult^.keys, 4);
         l := 0;
-        p := results;
+        p := PChar(errMsg);
         repeat
           scanCmdResult^.keys[l] := DecodeTokenW(p, #13#10, #0, False);
           Inc(l);

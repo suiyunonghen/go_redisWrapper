@@ -107,6 +107,11 @@ type
     procedure get(Key: string; stringCmdReturn: TRedisStringCmdReturnByte); overload;
     procedure get(Key: string; stringCmdReturn: TRedisStringCmdReturnByteA); overload;
     procedure get(Key: string; stringCmdReturn: TRedisStringCmdReturnByteG); overload;
+
+    procedure RandomKey(block: Boolean;stringCmdReturn: TRedisStringCmdReturn); overload;
+    procedure RandomKey(block: Boolean;stringCmdReturn: TRedisStringCmdReturnA); overload;
+    procedure RandomKey(block: Boolean;stringCmdReturn: TRedisStringCmdReturnG); overload;
+
     procedure GetRange(Key: string; Start, stop: Int64; stringCmdReturn: TRedisStringCmdReturn); overload;
     procedure GetRange(Key: string; Start, stop: Int64; stringCmdReturnA: TRedisStringCmdReturnA); overload;
     procedure GetRange(Key: string; Start, stop: Int64; stringCmdReturnG: TRedisStringCmdReturnG); overload;
@@ -218,6 +223,14 @@ type
     procedure IncrBy(Key: string; increment: Int64; intCmdReturn: TIntCmdReturn); overload;
     procedure IncrBy(Key: string; increment: Int64; intCmdReturn: TIntCmdReturnA); overload;
     procedure IncrBy(Key: string; increment: Int64; intCmdReturn: TIntCmdReturnG); overload;
+
+    procedure IncrByFloat(Key: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturn); overload;
+    procedure IncrByFloat(Key: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturnA); overload;
+    procedure IncrByFloat(Key: string; increment: Double; block: Boolean;
+      floatCmdReturn: TfloatCmdReturnG); overload;
+
     procedure StrLen(Key: string; intCmdReturn: TIntCmdReturn); overload;
     procedure StrLen(Key: string; intCmdReturn: TIntCmdReturnA); overload;
     procedure StrLen(Key: string; intCmdReturn: TIntCmdReturnG); overload;
@@ -407,10 +420,19 @@ type
     procedure ZRemRangeByLex(Key, min, max: string; intCmdReturn: TIntCmdReturnA); overload;
     procedure ZRemRangeByLex(Key, min, max: string; intCmdReturn: TIntCmdReturnG); overload;
 
-    // ∑µªÿ∫¡√Î
+    // ∑µªÿ√Î
     procedure ttl(Key: string; intCmdReturn: TIntCmdReturn); overload;
     procedure ttl(Key: string; intCmdReturn: TIntCmdReturnA); overload;
     procedure ttl(Key: string; intCmdReturn: TIntCmdReturnG); overload;
+    // ∑µªÿ∫¡√Î
+    procedure pttl(Key: string; intCmdReturn: TIntCmdReturn); overload;
+    procedure pttl(Key: string; intCmdReturn: TIntCmdReturnA); overload;
+    procedure pttl(Key: string; intCmdReturn: TIntCmdReturnG); overload;
+
+    procedure MGet(keys: array of string; block: Boolean;CmdReturn: TStringSliceCmdReturn); overload;
+    procedure MGet(keys: array of string; block: Boolean;CmdReturn: TStringSliceCmdReturnA); overload;
+    procedure MGet(keys: array of string; block: Boolean;CmdReturn: TStringSliceCmdReturnG); overload;
+
     procedure Expire(Key: string; expiration: Integer; CmdReturn: TBoolCmdReturn); overload;
     procedure Expire(Key: string; expiration: Integer; CmdReturn: TBoolCmdReturnA); overload;
     procedure Expire(Key: string; expiration: Integer; CmdReturn: TBoolCmdReturnG); overload;
@@ -607,6 +629,38 @@ begin
   Mnd^.Data := nil;
   TRedisStatusCmdA(Mnd^.Code) := StatusCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPing(PipeClient, False, statusCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.pttl(Key: string; intCmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^ := TMethod(intCmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPTTL(PipeClient, PChar(Key), False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.pttl(Key: string; intCmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+begin
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := intCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPTTL(PipeClient, PChar(Key), False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.pttl(Key: string; intCmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPTTL(PipeClient, PChar(Key), False, intCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.TypeCmd(Key: string; StatusCmdReturn: TRedisStatusCmd);
@@ -1207,6 +1261,41 @@ begin
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FIncrBy(PipeClient, PChar(Key), increment, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.IncrByFloat(Key: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturn);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^ := TMethod(floatCmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FIncrByFloat(PipeClient, PChar(Key), increment, False, floatCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.IncrByFloat(Key: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TfloatCmdReturn;
+begin
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PfloatCmdReturnA(@TMethod(ATemp).Code)^ := floatCmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FIncrByFloat(PipeClient, PChar(Key), increment, False, floatCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.IncrByFloat(Key: string; increment: Double;
+  block: Boolean; floatCmdReturn: TfloatCmdReturnG);
+var
+  Mnd: PMethod;
+begin
+  New(Mnd);
+  Mnd^.Data := nil;
+  TfloatCmdReturnA(Mnd^.Code) := floatCmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FIncrByFloat(PipeClient, PChar(Key), increment, False, floatCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.Del(keys: array of string; intCmdReturn: TIntCmdReturnG);
@@ -2074,6 +2163,80 @@ begin
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FMigrate(PipeClient, PChar(host), PChar(port), PChar(Key), db, timeout, False, statusCmdResult, Mnd);
 end;
 
+procedure TDxPipeClient.MGet(keys: array of string; block: Boolean;
+  CmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+begin
+  if Length(keys) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(keys) to High(keys) do
+  begin
+    if keystr = '' then
+      keystr := keys[i]
+    else
+      keystr := keystr + #13 + keys[i];
+  end;
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FMGet(PipeClient, PChar(keystr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.MGet(keys: array of string; block: Boolean;
+  CmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+  ATemp: TMethod;
+begin
+  if Length(keys) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(keys) to High(keys) do
+  begin
+    if keystr = '' then
+      keystr := keys[i]
+    else
+      keystr := keystr + #13 + keys[i];
+  end;
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FMGet(PipeClient, PChar(keystr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.MGet(keys: array of string; block: Boolean;
+  CmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+begin
+  if Length(keys) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(keys) to High(keys) do
+  begin
+    if keystr = '' then
+      keystr := keys[i]
+    else
+      keystr := keystr + #13 + keys[i];
+  end;
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FMGet(PipeClient, PChar(keystr),block, stringSliceCmdResult, Mnd);
+end;
+
 procedure TDxPipeClient.Migrate(host, port, Key: string; db, timeout: Integer; StatusCmdReturn: TRedisStatusCmdG);
 var
   Mnd: PMethod;
@@ -2251,6 +2414,44 @@ begin
   New(Mnd);
   Mnd^ := TMethod(ATemp);
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FRename(PipeClient, PChar(Key), PChar(NewKey), False, statusCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.RandomKey(block: Boolean;
+  stringCmdReturn: TRedisStringCmdReturn);
+var
+  Mnd: PStringCmdMethod;
+begin
+  New(Mnd);
+  Mnd^.isByteReturn := False;
+  Mnd^.Method := TMethod(stringCmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FRandomKey(PipeClient,False, False, stringCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.RandomKey(block: Boolean;
+  stringCmdReturn: TRedisStringCmdReturnA);
+var
+  ATemp: TRedisStatusCmd;
+  Mnd: PStringCmdMethod;
+begin
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PRedisStringCmdReturnA(@TMethod(ATemp).Code)^ := stringCmdReturn;
+  New(Mnd);
+  Mnd^.isByteReturn := False;
+  Mnd^.Method := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FRandomKey(PipeClient,False, False, stringCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.RandomKey(block: Boolean;
+  stringCmdReturn: TRedisStringCmdReturnG);
+var
+  Mnd: PStringCmdMethod;
+begin
+  New(Mnd);
+  Mnd^.isByteReturn := False;
+  Mnd^.Method.Data := nil;
+  TRedisStringCmdReturnA(Mnd^.Method.Code) := stringCmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FRandomKey(PipeClient, False, False, stringCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.Rename(Key, NewKey: string; StatusCmdReturn: TRedisStatusCmdG);
