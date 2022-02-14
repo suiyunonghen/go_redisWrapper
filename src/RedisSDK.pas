@@ -31,6 +31,16 @@ type
   //管道执行回调
   TPipeExecCallBack = procedure(pipeClient,params: Pointer;errMsg: PChar);stdcall;
 
+  TSubMsgInfo = record
+    Channel:    PChar;
+    Pattern:    Pchar;
+    PayLoadArrLen:  Integer;
+    PayloadPtr: PValueInterface;
+  end;
+  PSubMsgInfo = ^TSubMsgInfo;
+
+  TRedisSubscribeMsgCallBack = procedure(redisClient: Pointer;msg: PSubMsgInfo);stdcall;
+
   TRedisSDKData = record
     MangData: Pointer;
     // statusCmdCallBack: TstatusCmdCallback;
@@ -108,7 +118,7 @@ type
   PRedisClusterCfg = ^TRedisClusterCfg;
 
   TWndMsgCmd = (MC_Log, MC_StatusCmd, MC_ScanCmd, MC_SelectScan, MC_StringCmd,
-    MC_IntCmd,MC_FloatCmd,MC_pipeCmd,MC_BoolCmd,MC_StringSliceCmd);
+    MC_IntCmd,MC_FloatCmd,MC_pipeCmd,MC_BoolCmd,MC_StringSliceCmd,MC_SubscribeMsg);
 
   PSynWndMessageItem = ^TSynWndMessageItem;
 
@@ -239,6 +249,8 @@ type
   PStringSliceCmdReturnA = ^TStringSliceCmdReturnA;
   TStringSliceCmdReturnG = procedure(resultSlice: array of TValueInterface;errMsg: string);
 
+
+
   TKeyValue = record
     Key: string;
     Value: string;
@@ -289,6 +301,8 @@ type
   end;
   PRedisRangeBy = ^TRedisRangeBy;
 
+
+  TOnSubScribe = procedure(sender: TObject;channelOrPattern: string;isPattern: Boolean;msgs: array of TValueInterface) of object;
   TDxRedisClient = class
   private
     FRedisSdkManager: TDxRedisSdkManager;
@@ -310,6 +324,7 @@ type
     FRouteByLatency: Boolean;
     FRouteRandomly: Boolean;
     FReadOnly: Boolean;
+    FOnSubScribe: TOnSubScribe;
     procedure SetRedisSdkManager(const Value: TDxRedisSdkManager);
     procedure SetConStyle(const Value: TRedisConStyle);
     procedure SetDefaultDBIndex(const Value: Byte);
@@ -708,6 +723,13 @@ type
     procedure MGet(keys: array of string; block: Boolean;
       CmdReturn: TStringSliceCmdReturnA); overload;
     procedure MGet(keys: array of string; block: Boolean;
+      CmdReturn: TStringSliceCmdReturnG); overload;
+
+    procedure HMGet(key: string; fields: array of string; block: Boolean;
+      CmdReturn: TStringSliceCmdReturn); overload;
+    procedure HMGet(key: string; fields: array of string; block: Boolean;
+      CmdReturn: TStringSliceCmdReturnA); overload;
+    procedure HMGet(key: string; fields: array of string; block: Boolean;
       CmdReturn: TStringSliceCmdReturnG); overload;
 
     procedure XAdd(stream, ID: string; MaxLen, MaxLenApprox: Int64;
@@ -1380,6 +1402,10 @@ type
     procedure ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnA);overload;
     procedure ZDiff(Keys: array of string;block: Boolean;cmdReturn: TStringSliceCmdReturnG);overload;
 
+    procedure Subscribe(channels: array of string;block: Boolean;cmdReturn: TBoolCmdReturn);overload;
+    procedure Subscribe(channels: array of string;block: Boolean;cmdReturn: TBoolCmdReturnA);overload;
+    procedure Subscribe(channels: array of string;block: Boolean;cmdReturn: TBoolCmdReturnG);overload;
+
     property RedisSdkManager: TDxRedisSdkManager read FRedisSdkManager
       write SetRedisSdkManager;
     property DefaultDBIndex: Byte read FDefaultDBIndex write SetDefaultDBIndex;
@@ -1400,6 +1426,7 @@ type
     property ReadOnly: Boolean read FReadOnly write SetReadOnly;
     property RouteByLatency: Boolean read FRouteByLatency write SetRouteByLatency;
     property RouteRandomly: Boolean read FRouteRandomly write SetRouteRandomly;
+    property OnSubScribe: TOnSubScribe read FOnSubScribe write FOnSubScribe;
   end;
 
   TxAddArgs = record
@@ -1453,6 +1480,8 @@ type
       arrLen: Integer; block: Boolean; resultCallBack: TstatusCmdCallback;
       params: Pointer); stdcall;
     FMGet: procedure(redisClient: Pointer; Keys: PChar; block: Boolean;
+      resultCallBack: TstringSliceCmdCallback; params: Pointer); stdcall;
+    FHMGet: procedure(redisClient: Pointer; Key,fields: PChar; block: Boolean;
       resultCallBack: TstringSliceCmdCallback; params: Pointer); stdcall;
 
     FSet: procedure(redisClient: Pointer; Key: PChar; Value: Pointer;
@@ -1568,6 +1597,19 @@ type
     FIncrBy: procedure(redisClient: Pointer; Key: PChar; increment: Int64;
       block: Boolean; resultCallBack: TIntCmdCallBack;
       params: Pointer); stdcall;
+
+    FSubscribe: procedure(redisClient: Pointer; channels: PChar;block: Boolean; resultCallBack: TIntCmdCallBack;
+      subCallBack: TRedisSubscribeMsgCallBack;params: Pointer); stdcall;
+    FPSubscribe: procedure(redisClient: Pointer; channels: PChar;block: Boolean; resultCallBack: TIntCmdCallBack;
+      subCallBack: TRedisSubscribeMsgCallBack;params: Pointer); stdcall;
+    FUnSubscribe: procedure(redisClient: Pointer; channels: PChar;block: Boolean; resultCallBack: TIntCmdCallBack;
+      params: Pointer); stdcall;
+    FPUnsubscribe: procedure(redisClient: Pointer; channels: PChar;block: Boolean; resultCallBack: TIntCmdCallBack;
+      params: Pointer); stdcall;
+    FPublish: procedure(redisClient: Pointer; resultCallBack: TIntCmdCallBack;params: Pointer;block: Boolean;
+      channel: PChar;value: PValueInterface);stdcall;
+
+
     FStrLen: procedure(redisClient: Pointer; Key: PChar; block: Boolean;
       resultCallBack: TIntCmdCallBack; params: Pointer); stdcall;
     FSetRange: procedure(redisClient: Pointer; Key: PChar; offset: Int64;
@@ -1773,6 +1815,7 @@ type
     procedure InitDll(DllPath: string);
     procedure ProcessRedisMsgs;
     procedure DoStatusCmdMsg(statusRecord: Pointer);
+    procedure DoSubscribeMsg(subMsgs: Pointer);
     procedure DoScanCmdMsg(scanResult: Pointer);
     procedure DoSelectScanCmdMsg(scanResult: Pointer);
     procedure DoStringCmdMsg(strResult: Pointer);
@@ -2317,6 +2360,23 @@ begin
   end;
 end;
 
+procedure TDxRedisSdkManager.DoSubscribeMsg(subMsgs: Pointer);
+var
+  msgs: PSubScribeMsg;
+  i: integer;
+  rclient: TDxRedisClient;
+begin
+  msgs := subMsgs;
+  rclient := msgs^.client;
+  if Assigned(rclient.FOnSubScribe) then
+    rclient.FOnSubScribe(rclient,msgs^.channelOrPattern,msgs^.isPattern,msgs^.values);
+  if Length(msgs^.values) > 0 then
+  begin
+    for i := Low(msgs^.values) to High(msgs^.values) do
+      FreeMemory(msgs^.values[i].Value);
+  end;
+end;
+
 function TDxRedisSdkManager.GetActive: Boolean;
 begin
   Result := FDllHandle > 0;
@@ -2357,6 +2417,7 @@ begin
     FType := GetProcAddress(FDllHandle, 'Type');
     FMSet := GetProcAddress(FDllHandle, 'MSet');
     FMGet := GetProcAddress(FDllHandle, 'MGet');
+    FHMGet := GetProcAddress(FDllHandle, 'HMGet');
     FSet := GetProcAddress(FDllHandle, 'Set');
     FSetArgs := GetProcAddress(FDllHandle, 'SetArgs');
     FSetEx := GetProcAddress(FDllHandle, 'SetEX');
@@ -2490,6 +2551,12 @@ begin
     FZRevRangeByLex := GetProcAddress(FDllHandle, 'ZRevRangeByLex');
     FZRandMember := GetProcAddress(FDllHandle, 'ZRandMember');
     FZDiff := GetProcAddress(FDllHandle, 'ZDiff');
+    FSubscribe := GetProcAddress(FDllHandle, 'Subscribe');
+    FPSubscribe := GetProcAddress(FDllHandle, 'PSubscribe');
+    FUnSubscribe := GetProcAddress(FDllHandle, 'UnSubscribe');
+    FPUnsubscribe := GetProcAddress(FDllHandle, 'PUnsubscribe');
+    FPublish := GetProcAddress(FDllHandle, 'Publish');
+
 
     // 确保本窗口是在主消息线程中，否则需要在相应的线程中做独立的线程内的消息循环
     if GetCurrentThreadId <> MainThreadID then
@@ -2579,6 +2646,8 @@ begin
           MC_StringSliceCmd: DoStringSliceCmd(AItem^.params);
           MC_pipeCmd:
             DoPipeCmdMsg(AItem^.params);
+          MC_SubscribeMsg:
+            DoSubscribeMsg(AItem^.params);
         end;
       except
       end;
@@ -3277,6 +3346,77 @@ begin
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
   FRedisSdkManager.FStrLen(FRedisClient, PChar(Key), block, intCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.Subscribe(channels: array of string; block: Boolean;
+  cmdReturn: TBoolCmdReturn);
+var
+  Mnd: PMethod;
+  str: string;
+  i: Integer;
+begin
+  if Length(channels) = 0 then
+    Exit;
+  str := '';
+  for i := Low(channels) to High(channels) do
+  begin
+    if str = '' then
+      str := channels[i]
+    else str := str + #13 + channels[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FSubscribe(FRedisClient, PChar(str),block, boolCmdResult,subscribeRecv, Mnd);
+end;
+
+procedure TDxRedisClient.Subscribe(channels: array of string; block: Boolean;
+  cmdReturn: TBoolCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  str: string;
+  i: Integer;
+begin
+  if Length(channels) = 0 then
+    Exit;
+  str := '';
+  for i := Low(channels) to High(channels) do
+  begin
+    if str = '' then
+      str := channels[i]
+    else str := str + #13 + channels[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PBoolCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FSubscribe(FRedisClient, PChar(str),block, boolCmdResult,subscribeRecv, Mnd);
+end;
+
+procedure TDxRedisClient.Subscribe(channels: array of string; block: Boolean;
+  cmdReturn: TBoolCmdReturnG);
+var
+  Mnd: PMethod;
+  str: string;
+  i: Integer;
+begin
+  if Length(channels) = 0 then
+    Exit;
+  str := '';
+  for i := Low(channels) to High(channels) do
+  begin
+    if str = '' then
+      str := channels[i]
+    else str := str + #13 + channels[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TBoolCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FSubscribe(FRedisClient, PChar(str),block, boolCmdResult,subscribeRecv, Mnd);
 end;
 
 procedure TDxRedisClient.IncrBy(Key: string; increment: Int64; block: Boolean;
@@ -4130,6 +4270,83 @@ begin
   New(Mnd);
   Mnd^ := TMethod(ATemp);
   FRedisSdkManager.FHMSet(FRedisClient,PChar(key), @keyValues[0], l, block,boolCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HMGet(key: string; fields: array of string;
+  block: Boolean; CmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  fieldstr: string;
+  i: Integer;
+begin
+  if Length(fields) = 0 then
+    Exit;
+
+  fieldstr := '';
+  for i := Low(fields) to High(fields) do
+  begin
+    if fieldstr = '' then
+      fieldstr := fields[i]
+    else
+      fieldstr := fieldstr + #13 + fields[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  FRedisSdkManager.FHMGet(FRedisClient,PChar(key), PChar(fieldstr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HMGet(key: string; fields: array of string;
+  block: Boolean; CmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+  ATemp: TMethod;
+begin
+  if Length(fields) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(fields) to High(fields) do
+  begin
+    if keystr = '' then
+      keystr := fields[i]
+    else
+      keystr := keystr + #13 + fields[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  FRedisSdkManager.FHMGet(FRedisClient,PChar(key), PChar(keystr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxRedisClient.HMGet(key: string; fields: array of string;
+  block: Boolean; CmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+begin
+  if Length(fields) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(fields) to High(fields) do
+  begin
+    if keystr = '' then
+      keystr := fields[i]
+    else
+      keystr := keystr + #13 + fields[i];
+  end;
+  AtomicIncrement(FRunningCount, 1);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  FRedisSdkManager.FHMGet(FRedisClient,PChar(key), PChar(keystr),block, stringSliceCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.HMSet(key: string;keyValues: array of TRedisKeyValue;block: Boolean; CmdReturn: TBoolCmdReturnG);
@@ -6599,16 +6816,16 @@ end;
 procedure TDxRedisClient.SScan(cursor: UInt64; Key, match: string; count: Int64;
 block: Boolean; scanCmdReturn: TRedisScanValueCmdReturnA);
 var
-  ATemp: TRedisStatusCmd;
+  ATemp: TMethod;
   Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
-  TMethod(ATemp).Data := Pointer(-1);
-  TMethod(ATemp).Code := nil;
-  PRedisScanValueCmdReturnA(@TMethod(ATemp).Code)^ := scanCmdReturn;
+  ATemp.Data := Pointer(-1);
+  ATemp.Code := nil;
+  PRedisScanValueCmdReturnA(@ATemp.Code)^ := scanCmdReturn;
   New(Mnd);
   Mnd^.ScanResultType := scanResultValue;
-  Mnd^.Method := TMethod(ATemp);
+  Mnd^.Method := ATemp;
   FRedisSdkManager.FSScan(FRedisClient, cursor, PChar(Key), PChar(match), count,
     block, scanCmdResult, Mnd);
 end;
@@ -10610,38 +10827,41 @@ end;
 procedure TDxRedisClient.HKeys(key: string; block: Boolean;
   cmdReturn: TRedisScanCmdReturn);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^ := TMethod(CmdReturn);
+  Mnd^.Method := TMethod(cmdReturn);
+  Mnd^.ScanResultType := scanResultKeyStr;
   FRedisSdkManager.FHKeys(FRedisClient, PChar(key),block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.HKeys(key: string; block: Boolean;
   cmdReturn: TRedisScanCmdReturnA);
 var
-  Mnd: PMethod;
-  ATemp: TIntCmdReturn;
+  ATemp: TRedisStatusCmd;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   TMethod(ATemp).Data := Pointer(-1);
   TMethod(ATemp).Code := nil;
-  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  PRedisScanCmdReturnA(@TMethod(ATemp).Code)^ := cmdReturn;
   New(Mnd);
-  Mnd^ := TMethod(ATemp);
+  Mnd^.Method := TMethod(ATemp);
+  Mnd^.ScanResultType := scanResultKeyStr;
   FRedisSdkManager.FHKeys(FRedisClient, PChar(key),block, scanCmdResult, Mnd);
 end;
 
 procedure TDxRedisClient.HKeys(key: string; block: Boolean;
   cmdReturn: TRedisScanCmdReturnG);
 var
-  Mnd: PMethod;
+  Mnd: PScanMethod;
 begin
   AtomicIncrement(FRunningCount, 1);
   New(Mnd);
-  Mnd^.Data := nil;
-  TRedisScanCmdReturnA(Mnd^.Code) := CmdReturn;
+  Mnd^.Method.Data := nil;
+  Mnd^.ScanResultType := scanResultKeyStr;
+  TRedisScanCmdReturnA(Mnd^.Method.Code) := cmdReturn;
   FRedisSdkManager.FHKeys(FRedisClient, PChar(key),block, scanCmdResult, Mnd);
 end;
 

@@ -439,6 +439,13 @@ type
     procedure MGet(keys: array of string; block: Boolean;CmdReturn: TStringSliceCmdReturnA); overload;
     procedure MGet(keys: array of string; block: Boolean;CmdReturn: TStringSliceCmdReturnG); overload;
 
+    procedure HMGet(key: string; fields: array of string; block: Boolean;
+      CmdReturn: TStringSliceCmdReturn); overload;
+    procedure HMGet(key: string; fields: array of string; block: Boolean;
+      CmdReturn: TStringSliceCmdReturnA); overload;
+    procedure HMGet(key: string; fields: array of string; block: Boolean;
+      CmdReturn: TStringSliceCmdReturnG); overload;
+
     procedure Expire(Key: string; expiration: Integer; CmdReturn: TBoolCmdReturn); overload;
     procedure Expire(Key: string; expiration: Integer; CmdReturn: TBoolCmdReturnA); overload;
     procedure Expire(Key: string; expiration: Integer; CmdReturn: TBoolCmdReturnG); overload;
@@ -7026,6 +7033,80 @@ begin
   New(Mnd);
   Mnd^ := TMethod(ATemp);
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHMSet(PipeClient, PChar(Key), @keyValues[0], l, False, boolCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.HMGet(key: string; fields: array of string;
+  block: Boolean; CmdReturn: TStringSliceCmdReturn);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+begin
+  if Length(fields) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(fields) to High(fields) do
+  begin
+    if keystr = '' then
+      keystr := fields[i]
+    else
+      keystr := keystr + #13 + fields[i];
+  end;
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHMGet(PipeClient,PChar(key), PChar(keystr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.HMGet(key: string; fields: array of string;
+  block: Boolean; CmdReturn: TStringSliceCmdReturnA);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+  ATemp: TMethod;
+begin
+  if Length(fields) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(fields) to High(fields) do
+  begin
+    if keystr = '' then
+      keystr := fields[i]
+    else
+      keystr := keystr + #13 + fields[i];
+  end;
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PStringSliceCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHMGet(PipeClient,PChar(key), PChar(keystr),block, stringSliceCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.HMGet(key: string; fields: array of string;
+  block: Boolean; CmdReturn: TStringSliceCmdReturnG);
+var
+  Mnd: PMethod;
+  keystr: string;
+  i: Integer;
+begin
+  if Length(fields) = 0 then
+    Exit;
+
+  keystr := '';
+  for i := Low(fields) to High(fields) do
+  begin
+    if keystr = '' then
+      keystr := fields[i]
+    else
+      keystr := keystr + #13 + fields[i];
+  end;
+  New(Mnd);
+  Mnd^.Data := nil;
+  TStringSliceCmdReturnA(Mnd^.Code) := CmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FHMGet(PipeClient,PChar(key), PChar(keystr),block, stringSliceCmdResult, Mnd);
 end;
 
 procedure TDxPipeClient.HMSet(Key: string; keyValues: array of TRedisKeyValue; CmdReturn: TBoolCmdReturnG);

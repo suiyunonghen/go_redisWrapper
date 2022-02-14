@@ -91,6 +91,14 @@ type
   end;
   PRedisStringSliceCmdResult = ^TRedisStringSliceCmdResult;
 
+  TSubScribeMsg = record
+    isPattern: Boolean;
+    channelOrPattern: string;
+    client: Pointer;
+    values: array of TValueInterface;
+  end;
+  PSubScribeMsg = ^TSubScribeMsg;
+
 procedure LogProc(Data: Pointer; logLevel: Integer; logMsg: PChar); stdcall;
 procedure statusCmdResult(redisClient, params: Pointer; CmdResult: PChar;IsErrResult: Boolean); stdcall;
 procedure stringCmdResult(redisClient, params: Pointer; CmdResult: Pointer;resultLen: Integer; IsErrResult: Boolean); stdcall;
@@ -101,6 +109,7 @@ procedure scanCmdResult(redisClient, params: Pointer; results: Pointer;ValuesLen
 procedure boolCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
 
 procedure stringSliceCmdResult(redisClient, params: Pointer;resultSlice: PValueInterface;sliceLen: Integer;errMsg: Pchar);stdcall;
+procedure subscribeRecv(redisClient: Pointer;msg: PSubMsgInfo);stdcall;
 implementation
 
 type
@@ -352,6 +361,38 @@ begin
     AtomicDecrement(TDxRedisClientEx(rclient).FRunningCount, 1);
 end;
 
+procedure subscribeRecv(redisClient: Pointer;msg: PSubMsgInfo);stdcall;
+var
+  rClient: TDxRedisClient;
+  subMsgs: PSubScribeMsg;
+  i: Integer;
+  v: PValueInterface;
+begin
+  if TObject(redisClient).InheritsFrom(TDxRedisClient) then
+  begin
+    rClient := redisClient;
+    if Assigned(rClient.OnSubScribe) then
+    begin
+      New(subMsgs);
+      subMsgs^.isPattern := msg^.Pattern <> nil;
+      if subMsgs^.isPattern then
+        subMsgs^.channelOrPattern := StrPas(msg^.Pattern)
+      else subMsgs^.channelOrPattern := StrPas(msg^.Channel);
+      subMsgs^.client := redisClient;
+      SetLength(subMsgs^.values,msg^.PayLoadArrLen);
+      for i := 0 to msg^.PayLoadArrLen - 1 do
+      begin
+        v := msg^.PayloadPtr;
+        subMsgs^.values[i].ValueLen := v^.ValueLen;
+        subMsgs^.values[i].Value := GetMemory(v^.ValueLen);
+        Move(v^.Value^,subMsgs^.values[i].Value^,v^.ValueLen);
+        Inc(v);
+      end;
+      TDxRedisSdkManagerEx(rclient.RedisSdkManager).PostRedisMsg(MC_SubscribeMsg, subMsgs);
+    end;
+  end;
+end;
+
 procedure boolCmdResult(redisClient, params: Pointer; intResult: Int64;errMsg: PChar); stdcall;
 var
   intCmdResult: PRedisIntResult;
@@ -481,17 +522,21 @@ begin
       end;
     scanResultKeyStr:
       begin
-        errMsg := qstring.Utf8Decode(results,ValuesLen);
-        SetLength(scanCmdResult^.keys, 4);
-        l := 0;
-        p := PChar(errMsg);
-        repeat
-          scanCmdResult^.keys[l] := DecodeTokenW(p, #13#10, #0, False);
-          Inc(l);
-          if (l = Length(scanCmdResult^.keys)) and (p^ <> #0) then
-            SetLength(scanCmdResult^.keys, l + 4);
-        until p^ = #0;
-        SetLength(scanCmdResult^.keys, l);
+        if results <> nil then
+        begin
+          errMsg := qstring.Utf8Decode(results,ValuesLen);
+          SetLength(scanCmdResult^.keys, 4);
+          l := 0;
+          p := PChar(errMsg);
+          repeat
+            scanCmdResult^.keys[l] := DecodeTokenW(p, #13#10, #0, False);
+            Inc(l);
+            if (l = Length(scanCmdResult^.keys)) and (p^ <> #0) then
+              SetLength(scanCmdResult^.keys, l + 4);
+          until p^ = #0;
+          SetLength(scanCmdResult^.keys, l);
+        end
+        else SetLength(scanCmdResult^.keys, 0);
       end;
     scanResultScoreValue:
       begin
