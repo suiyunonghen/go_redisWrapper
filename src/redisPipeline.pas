@@ -587,6 +587,15 @@ type
     procedure ZDiff(keys: array of string; CmdReturn: TStringSliceCmdReturn); overload;
     procedure ZDiff(keys: array of string; CmdReturn: TStringSliceCmdReturnA); overload;
     procedure ZDiff(keys: array of string; CmdReturn: TStringSliceCmdReturnG); overload;
+
+    procedure Publish(channel,value: string;block: Boolean;cmdReturn: TIntCmdReturn);overload;
+    procedure Publish(channel,value: string;block: Boolean;cmdReturn: TIntCmdReturnA);overload;
+    procedure Publish(channel,value: string;block: Boolean;cmdReturn: TIntCmdReturnG);overload;
+
+    procedure Publish(channel: string;buffer: Pointer;bufLen: Integer; block: Boolean;cmdReturn: TIntCmdReturn);overload;
+    procedure Publish(channel: string;buffer: Pointer;bufLen: Integer;block: Boolean;cmdReturn: TIntCmdReturnA);overload;
+    procedure Publish(channel: string;buffer: Pointer;bufLen: Integer;block: Boolean;cmdReturn: TIntCmdReturnG);overload;
+
     procedure Execute(block: Boolean); overload;
     procedure Execute(block: Boolean; execReturn: TPipelineExecReturn); overload;
     procedure Execute(block: Boolean; execReturn: TPipelineExecReturnA); overload;
@@ -674,6 +683,50 @@ begin
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPTTL(PipeClient, PChar(Key), False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.Publish(channel, value: string; block: Boolean;
+  cmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+  v: TValueInterface;
+begin
+  v.ValueLen := 0;
+  v.Value := PChar(value);
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPublish(PipeClient,intCmdResult,Mnd,block,PChar(channel),@v);
+end;
+
+procedure TDxPipeClient.Publish(channel, value: string; block: Boolean;
+  cmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  v: TValueInterface;
+begin
+  v.ValueLen := 0;
+  v.Value := PChar(value);
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPublish(PipeClient,intCmdResult,Mnd,block,PChar(channel),@v);
+end;
+
+procedure TDxPipeClient.Publish(channel, value: string; block: Boolean;
+  cmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+  v: TValueInterface;
+begin
+  v.ValueLen := 0;
+  v.Value := PChar(value);
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := CmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPublish(PipeClient,intCmdResult,Mnd,block,PChar(channel),@v);
 end;
 
 procedure TDxPipeClient.TypeCmd(Key: string; StatusCmdReturn: TRedisStatusCmd);
@@ -8420,6 +8473,50 @@ begin
   Mnd^.Data := nil;
   TIntCmdReturnA(Mnd^.Code) := intCmdReturn;
   TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FLInsertAfter(PipeClient, PChar(Key), @pivot,@Value, False, intCmdResult, Mnd);
+end;
+
+procedure TDxPipeClient.Publish(channel: string; buffer: Pointer;
+  bufLen: Integer; block: Boolean; cmdReturn: TIntCmdReturn);
+var
+  Mnd: PMethod;
+  v: TValueInterface;
+begin
+  v.ValueLen := bufLen;
+  v.Value := buffer;
+  New(Mnd);
+  Mnd^ := TMethod(CmdReturn);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPublish(PipeClient,intCmdResult,Mnd,block,PChar(channel),@v);
+end;
+
+procedure TDxPipeClient.Publish(channel: string; buffer: Pointer;
+  bufLen: Integer; block: Boolean; cmdReturn: TIntCmdReturnA);
+var
+  Mnd: PMethod;
+  ATemp: TIntCmdReturn;
+  v: TValueInterface;
+begin
+  v.ValueLen := bufLen;
+  v.Value := buffer;
+  TMethod(ATemp).Data := Pointer(-1);
+  TMethod(ATemp).Code := nil;
+  PIntCmdReturnA(@TMethod(ATemp).Code)^ := CmdReturn;
+  New(Mnd);
+  Mnd^ := TMethod(ATemp);
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPublish(PipeClient,intCmdResult,Mnd,block,PChar(channel),@v);
+end;
+
+procedure TDxPipeClient.Publish(channel: string; buffer: Pointer;
+  bufLen: Integer; block: Boolean; cmdReturn: TIntCmdReturnG);
+var
+  Mnd: PMethod;
+  v: TValueInterface;
+begin
+  v.ValueLen := bufLen;
+  v.Value := buffer;
+  New(Mnd);
+  Mnd^.Data := nil;
+  TIntCmdReturnA(Mnd^.Code) := CmdReturn;
+  TDxRedisSdkManagerEx(FOwner.RedisSdkManager).FPublish(PipeClient,intCmdResult,Mnd,block,PChar(channel),@v);
 end;
 
 end.
